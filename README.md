@@ -253,16 +253,31 @@ Dependencies live in `pyproject.toml` and are locked in `uv.lock`; the Docker im
 - Add a dependency: `uv add <package>`
 - Upgrade everything: `uv lock --upgrade`, then rebuild the image
 
-There's no frontend build step: the UI is a single HTML file with plain JavaScript. Edit `app/static/index.html` and reload the page. Read [How it works](docs/ARCHITECTURE.md) before changing download or token code.
+There's no frontend build step: the UI is plain HTML, CSS and JavaScript modules that the browser loads directly. Edit a file under `app/static/` and reload the page. [How it works](docs/ARCHITECTURE.md#frontend) explains where each piece lives, backend and frontend; read it before changing download or token code.
 
 ## Project layout
 
 ```
 hoard/
 ├── app/
-│   ├── main.py              ← FastAPI backend: Hub search, downloads, library, token settings
+│   ├── main.py              ← assembles the FastAPI app
+│   ├── config.py            ← settings from environment variables
+│   ├── hub.py               ← Hugging Face: token, API client, readable errors
+│   ├── storage.py           ← the models folder: names, .hoard.json, scanning
+│   ├── jobs.py              ← download jobs (one process each, progress, stop)
+│   ├── middleware.py        ← password, CSRF guard, cache headers
+│   ├── routes/              ← the HTTP API: browse, downloads, library, settings
 │   └── static/
-│       ├── index.html       ← the whole UI (HTML + CSS + JS, hand-drawn theme, icons)
+│       ├── index.html       ← page skeleton: header, the three tabs, overlay containers
+│       ├── css/             ← theme (colors, fonts) · base (pencil strokes) · components · views
+│       ├── js/
+│       │   ├── main.js      ← entry point: theme, tabs, shortcuts, wiring
+│       │   ├── state.js     ← shared state + tiny event bus
+│       │   ├── lib/         ← dom (safe html`` templates), api, format, models (file logic)
+│       │   ├── ui/          ← overlays (modal, drawer, toasts) and shared components
+│       │   └── views/       ← library, browse, model-panel, downloads, settings
+│       ├── icons.svg        ← hand-drawn icon sprite
+│       ├── favicon.svg
 │       └── fonts/           ← bundled Caveat, Patrick Hand, Courier Prime (+ their OFL licenses)
 ├── docs/
 │   ├── API.md               ← HTTP API reference
