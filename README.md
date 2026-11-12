@@ -239,15 +239,19 @@ Logs: `docker compose logs -f hoard`.
 
 ## Development
 
-Requirements: Python 3.11+.
+Requirements: [uv](https://docs.astral.sh/uv/). It installs the right Python (3.12, from `.python-version`) for you.
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync                      # create .venv with the exact versions from uv.lock
 mkdir -p models config
 MODELS_DIR=$PWD/models CONFIG_DIR=$PWD/config HF_HOME=$PWD/models/.hf-home \
-  uvicorn app.main:app --reload --port 8080
+  uv run uvicorn app.main:app --reload --port 8080
 ```
+
+Dependencies live in `pyproject.toml` and are locked in `uv.lock`; the Docker image installs from the lockfile too.
+
+- Add a dependency: `uv add <package>`
+- Upgrade everything: `uv lock --upgrade`, then rebuild the image
 
 There's no frontend build step: the UI is a single HTML file with plain JavaScript. Edit `app/static/index.html` and reload the page. Read [How it works](docs/ARCHITECTURE.md) before changing download or token code.
 
@@ -266,7 +270,8 @@ hoard/
 │   └── images/              ← screenshots
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
+├── pyproject.toml           ← dependencies (managed with uv)
+├── uv.lock                  ← exact locked versions
 ├── .env.example
 └── LICENSE
 ```
