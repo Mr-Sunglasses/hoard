@@ -1,53 +1,65 @@
 # How Hoard works
 
-Hoard is one Python process (FastAPI + Uvicorn) serving a small static web UI. There's no database: the models folder **is** the state.
+Hoard is one Python process (FastAPI + Uvicorn) serving a static web UI. There's no database: the models folder is the state.
 
 ```
- Browser (app/static)  ──HTTP/JSON──▶  FastAPI (app/)         ──▶  Hugging Face Hub API
-                                          │
-                                          ├── spawns one download process per job ──▶ huggingface_hub.snapshot_download
-                                          │                                              │
-                                          └── reads/writes ─────────────────────────────▶ /models/<org>__<name>/
-                                                                                         /config/hf_token
+Browser ──JSON──▶ FastAPI ──▶ Hugging Face API
+                     │
+                     ├──▶ one process per download ──▶ snapshot_download ──▶ /models/<org>__<name>/
+                     └──▶ reads and writes ─────────────────────────────────▶ /models, /config/hf_token
 ```
 
-## Backend
+## Code map
 
 ```
 app/
-├── main.py         assembles the app: middleware, routers, static files, Hub error handler
-├── config.py       settings from environment variables (MODELS_DIR, CONFIG_DIR, APP_PASSWORD)
-├── hub.py          Hugging Face: which token to use, saving it, the API client, readable errors
-├── storage.py      the models folder: folder names, .hoard.json, scanning sizes and formats
-├── jobs.py         download jobs: start, progress, stop, the in-memory job list
-├── middleware.py   basic auth, CSRF guard, no-cache headers for the UI
-└── routes/         the HTTP API (see API.md), one router per area
-    ├── browse.py       /api/search, /api/repo
-    ├── downloads.py    /api/downloads
-    ├── library.py      /api/library
-    └── settings.py     /api/settings/token
+├── main.py           assembles the app: middleware, routers, static files, error handler
+├── config.py         settings from environment variables
+├── hub.py            Hugging Face: which token to use, the API client, readable errors
+├── storage.py        the models folder: folder names, .hoard.json, sizes and formats
+├── jobs.py           download jobs: start, progress, stop (the only in-memory state)
+├── middleware.py     basic auth, CSRF guard, no-cache headers
+├── routes/           the HTTP API, one router per area: browse, downloads, library, settings
+└── static/
+    ├── index.html    page skeleton, pencil SVG filters, theme set before first paint
+    ├── icons.svg     hand-drawn icon sprite
+    ├── css/          theme (colors, fonts) · base (pencil outline) · components · views
+    └── js/
+        ├── main.js   entry point: theme, tabs, shortcuts, polling
+        ├── state.js  shared state and a tiny on()/emit() event bus
+        ├── lib/      no DOM: html`` templates, API client, formatting, file-selection rules
+        ├── ui/       modal, drawer, toasts, shared components
+        └── views/    library, browse, model panel, downloads, settings
 ```
 
-Routes stay thin: they validate input and call `hub`, `storage` or `jobs`. Only `jobs.py` holds state.
+Routes stay thin: they check input and call `hub`, `storage` or `jobs`.
 
-## State
+## Run it locally
 
-| What | Where | Lifetime |
-|---|---|---|
-| Models | `/models/<org>__<name>/` (plain repo layout) | Until you delete them |
-| Per-model notes | `/models/<org>__<name>/.hoard.json` | Written when a download finishes |
-| Resume data | `/models/<org>__<name>/.cache/huggingface/` | Managed by `huggingface_hub` |
-| Saved token | `/config/hf_token` (mode `0600`) | Until removed in the UI |
-| Download jobs | Memory | Until the container restarts |
+Install [uv](https://docs.astral.sh/uv/); it fetches Python 3.12 for you.
 
-`.hoard.json` example:
+```bash
+uv sync
+mkdir -p models config
+MODELS_DIR=$PWD/models CONFIG_DIR=$PWD/config HF_HOME=$PWD/models/.hf-home \
+  uv run uvicorn app.main:app --reload --port 8080
+```
+
+There's no frontend build: edit a file under `app/static/` and reload the page. Use `uv add <package>` to add a dependency and `uv lock --upgrade` to update them all. The Docker image installs from `uv.lock`.
+
+## The models folder
+
+Each repo is saved to `/models/<org>__<name>/` with its own file layout, plus two extras:
+
+- `.hoard.json`: what Hoard downloaded. Written when a download finishes.
+- `.cache/huggingface/`: resume data, managed by `huggingface_hub`.
 
 ```json
 {
   "repo_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
   "revision": "main",
   "sha": "5f91d94bd9cd7190a9f3216ff93cd1dd95f2c7be",
-  "include": ["config.json", "*.json", "model.safetensors"],
+  "include": ["*.json", "model.safetensors"],
   "license": "apache-2.0",
   "pipeline_tag": "text-generation",
   "library_name": "transformers",
@@ -56,97 +68,51 @@ Routes stay thin: they validate input and call `hub`, `storage` or `jobs`. Only 
 }
 ```
 
-- `revision` is the branch you asked for. `sha` is the exact commit you have. Update checks compare `sha` with the branch's current commit.
-- `include` is the file selection (`null` means the whole repo). Updates and later downloads reuse it, and new selections are merged into it.
+- `revision` is the branch you asked for; `sha` is the commit you have. Update checks compare the two.
+- `include` is the file selection (`null` means the whole repo). Downloading more files into a model merges them into it, so updates refresh everything.
 
-The library view is built by scanning the models folder on every request. Any folder not starting with `.` is listed, so models you copy in by hand appear too (marked unmanaged).
+The library is a fresh scan of the folder on every request. Folders without `.hoard.json` are listed as *added by hand*. Hidden folders (like `.hf-home`, the Hugging Face cache) are skipped.
 
 ## Downloads
 
-1. `POST /api/downloads` fetches the repo's file list and current commit, then filters the files by `include` to work out the expected total size.
-2. A **separate process** (`multiprocessing`, `spawn`) runs `snapshot_download(repo, revision=<commit>, local_dir=<folder>, allow_patterns=include)`. Pinning to the commit means every file comes from one revision even if the repo changes mid-download.
-3. A monitor thread in the server measures the folder's size (resume data included) about once a second. That's the progress number. `huggingface_hub` writes data in chunks, so progress moves in steps.
-4. When the process exits, its result comes back over a queue. On success Hoard writes `.hoard.json`. On failure the error's first line is stored on the job.
+1. `jobs.start()` fetches the repo's file list and current commit, and adds up the size of the selected files.
+2. A separate process runs `snapshot_download` pinned to that commit, so every file comes from the same revision even if the repo changes mid-download.
+3. A thread measures the folder about once a second. That's the progress.
+4. When the process exits, success writes `.hoard.json`; failure stores the error's first line on the job.
 
-**Why a process and not a thread?** So **Stop** is reliable: the server terminates the process. `huggingface_hub` keeps partial files in `.cache/huggingface/download/`, so running the same download again resumes instead of starting over.
+Each download gets its own process so **Stop** can simply terminate it. Partial files stay in `.cache/`, so starting again resumes. One job per repo at a time (a second gets `409`); different repos download in parallel with 4 file workers each.
 
-**Concurrency:** each repo can have one active job (a second gets `409`). Different repos download in parallel, each with 4 file workers.
+## Token
 
-## Hugging Face token
+`hub.get_token()` uses `HF_TOKEN` from the environment first, then `/config/hf_token` saved from the UI. Every Hugging Face call passes it explicitly. The download process gets it through a pipe, never on the command line.
 
-`hub.get_token()` picks the token in this order:
-
-1. `HF_TOKEN` environment variable (set by the server admin), **then**
-2. `/config/hf_token` (saved from the UI).
-
-Every Hub call passes the token explicitly (`hub.client()`, and the download process gets it as an argument through a pipe, not the command line). When saving from the UI:
-
-- Format check (`hf_` prefix, length, no whitespace), then `whoami()` against Hugging Face. Rejected tokens are never stored.
-- The file is written to a temp file created with mode `0600`, then atomically renamed into place.
-- Status responses only include `hf_…` plus the last four characters, the account name, token name and role.
+A token saved from the UI is checked for format, then with Hugging Face (`whoami`), and rejected tokens are never stored. It's written to a `0600` temp file and renamed into place. The API only ever returns its last four characters, the account, and the token's name and role.
 
 ## Request protection
 
-Two middlewares wrap every request:
-
-1. **Basic auth** (only when `APP_PASSWORD` is set). The password is compared in constant time.
-2. **CSRF guard.** `POST`/`PUT`/`DELETE` under `/api/` need `X-Requested-With: hoard`. Browsers won't add a custom header to a cross-site request without a CORS preflight, and Hoard never answers preflights. JSON bodies also need `Content-Type: application/json`, which FastAPI enforces.
-
-Folder names from URLs go through `storage.model_dir()`, which rejects separators, leading dots, and anything that resolves outside `MODELS_DIR`.
+- **Password:** with `APP_PASSWORD` set, every request needs HTTP Basic auth. The check takes the same time whether the password is right or wrong.
+- **CSRF:** `POST`/`PUT`/`DELETE` under `/api/` need `X-Requested-With: hoard`. Browsers can't add that header to a cross-site request without a CORS preflight, which Hoard never answers.
+- **Paths:** folder names from URLs go through `storage.model_dir()`, which rejects anything that could leave `MODELS_DIR`.
 
 ## Frontend
 
-Plain HTML, CSS and native ES modules: no framework, no bundler, no build step. The browser loads the files as they are, and the server sends `Cache-Control: no-cache` for them so an update never mixes old and new modules (unchanged files come back as cheap `304`s).
+Plain HTML, CSS and ES modules, with no framework and no bundler. The server sends `Cache-Control: no-cache`, so after an update the browser never mixes old and new modules. Unchanged files come back as `304`s.
 
-```
-app/static/
-├── index.html            page skeleton (header, tab sections, empty overlay containers),
-│                         the pencil SVG filters, and a tiny script that sets the theme before first paint
-├── css/
-│   ├── theme.css         fonts + color tokens; light ("paper") and dark ("chalkboard") defined once each
-│   ├── base.css          page, typography, icons, and .sk, the pencil-outline primitive
-│   ├── components.css    buttons, inputs, tags/chips, lists, bars, notices, modal/drawer/toasts
-│   └── views.css         top bar and per-screen layout, plus small-screen rules
-├── icons.svg             hand-drawn icon sprite, used as <use href="/static/icons.svg#i-name">
-└── js/
-    ├── main.js           entry point: theme toggle, tabs, "/" shortcut, event wiring, polling
-    ├── state.js          shared state object + on()/emit() event bus
-    ├── lib/
-    │   ├── dom.js        $, $$, render(), icon(), and the html`` template tag
-    │   ├── api.js        fetch wrapper (adds the CSRF header), query builder, safe localStorage
-    │   ├── format.js     sizes, counts, "3d ago", durations, task names
-    │   └── models.js     pure file logic: weights, GGUF quantizations, presets, default selection
-    ├── ui/
-    │   ├── overlay.js    toasts, modal + confirmDialog(), drawer, Escape/backdrop handling
-    │   └── components.js avatar, repo name, loading/empty/error states, doodles
-    └── views/
-        ├── library.js    stats, model list, files, update checks, delete
-        ├── browse.js     search with debounce and out-of-order protection
-        ├── model-panel.js  facts, notices, and the FilePicker class
-        ├── downloads.js  polling, speed smoothing, stop/resume, tab badge
-        └── settings.js   Hugging Face token dialog
-```
+- **Escaped templates.** Views build markup with `` html`…` `` from `lib/dom.js`, which escapes every value. Nested templates and arrays go in as-is, and `null`/`false` render nothing, so optional parts read `${cond && html`…`}`. Use `raw()` only for trusted markup like icons.
+- **Views stay separate.** They talk through events on `state.js` (`library:changed`, `downloads:changed`), and buttons switch tabs with `data-goto="browse"`.
+- **Logic apart from DOM.** Formatting and file-selection rules live in `lib/`.
+- **Data flow.** `GET /api/downloads` is polled every 1.5 s and drives the badge, the list and library refreshes. Search waits 400 ms after typing and ignores responses that arrive out of order.
 
-**Conventions:**
+**The hand-drawn look:**
 
-- **Templates are escaped by default.** Views build markup with `` html`...` `` from `lib/dom.js`, which escapes every interpolated value (repo names, file paths, errors all come from the network). Nested `` html`` `` results and arrays are inserted as-is, and `null`/`false` render nothing, so optional parts read as `${cond && html`...`}`. `raw()` is only for hand-written markup such as icons.
-- **Views don't import each other's internals.** They talk through `state.js` events: `library:changed` (reload the library), `downloads:changed` (poll now). Tab switches use a `data-goto="browse"` attribute handled in `main.js`. The one direct link is browse → model panel → settings (the panel offers "Add token").
-- **Logic vs. rendering.** Anything that doesn't touch the DOM (formatting, which files to tick) lives in `lib/` and is easy to test on its own.
-
-**Hand-drawn look, technically:**
-
-- **Pencil borders:** the `.sk` class draws its border on `::before` (and a faint second stroke on `::after`) with uneven `border-radius` values. An SVG `feTurbulence` + `feDisplacementMap` filter (`#rough`, `#rough2`) makes the lines wobble. The filter only applies to these pseudo-elements, so text stays sharp.
-- **Highlighter:** the active tab and primary buttons use a slightly rotated, filtered yellow block behind the text. Primary buttons layer the yellow fill (`::before`, `z-index:-1`) above a scribbled ink shadow (`::after`, `z-index:-2`).
-- **Pencil shading:** progress and disk bars are `repeating-linear-gradient` hatching.
-- **Icons:** hand-drawn SVG `<symbol>`s in `icons.svg` with slightly uneven paths, inserted with `icon("name")`. The pencil filters stay inline in `index.html` because CSS `filter: url(#…)` can only reach filters in the same document.
-- **Themes:** colors are CSS variables in `theme.css`. A tiny inline script in `index.html` sets `data-theme` before first paint (saved choice, else the system setting), so each theme is defined once and never flashes. The toggle saves the choice in `localStorage`; until then Hoard follows system changes.
-- **Fonts:** Caveat (headings and numbers), Patrick Hand (body) and Courier Prime (file names), served from `/static/fonts`.
-
-**Data flow:** the page polls `GET /api/downloads` every 1.5 s, which drives the tab badge, the Downloads list, and a library refresh when a job finishes. Speed is smoothed on the client because bytes arrive in bursts. Search is debounced (400 ms), and a sequence counter drops responses that arrive out of order.
+- **Pencil outlines:** `.sk` draws its border on `::before`/`::after` with uneven radii. An SVG turbulence filter (`#rough`, inline in `index.html` because CSS can only reference filters in the same page) makes it wobble without blurring text.
+- **Highlighter:** a slightly rotated yellow block behind the active tab and primary buttons.
+- **Shading:** progress bars use `repeating-linear-gradient` hatching.
+- **Themes:** CSS variables in `theme.css`. An inline script sets `data-theme` before first paint, so there's no flash.
 
 ## Known limits
 
-- The job list is in memory, so a restart forgets running downloads. Start them again and they resume from the partial files on disk.
-- Files removed from a repo upstream aren't deleted locally on update.
-- Progress counts files already in the folder, so re-downloading into an existing model can show a high percentage immediately.
-- Search lists models only, not datasets or Spaces.
+- The job list lives in memory; after a restart, start a download again and it resumes from disk.
+- Files deleted from a repo upstream stay on disk after an update.
+- Downloading into an existing model can show a high percentage right away, because existing files count.
+- Search covers models only, not datasets or Spaces.
