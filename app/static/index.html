@@ -1,931 +1,160 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hoard</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='2' width='28' height='28' rx='9' fill='%23ffe066' stroke='%2326221d' stroke-width='2'/><path d='M16 6.5c3.5 1.9 7 3.8 10.4 5.8v7.8c-3.4 1.9-6.9 3.9-10.4 5.8-3.5-1.900-7-3.9-10.4-5.8v-7.8c3.4-2 6.9-3.9 10.4-5.8zM5.8 12.4c3.4 1.9 6.8 3.8 10.2 5.7 3.5-1.9 6.9-3.8 10.3-5.9M16 18.1v7.6' fill='none' stroke='%2326221d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-<style>
-  @font-face { font-family: "Caveat"; src: url("/static/fonts/Caveat-700.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
-  @font-face { font-family: "Patrick Hand"; src: url("/static/fonts/PatrickHand-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-  @font-face { font-family: "Courier Prime"; src: url("/static/fonts/CourierPrime-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hoard</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 
-  /* ---------- paper (light) ---------- */
-  :root {
-    --paper: #fbf7ee; --paper-2: #f2ead8; --ink: #26221d; --ink-soft: #5b544a; --ink-faint: #9a9284;
-    --dot: rgba(38,34,29,.13); --hover: rgba(255,214,64,.20);
-    --hl: rgba(255,214,64,.75); --hl-solid: #ffe066; --hl-text: #26221d;
-    --blue: #2c5aa8; --red: #c4372c; --green: #2c7a4b; --orange: #b8640f;
-    --note: #fff3a6; --note-err: #ffd6cf; --note-shadow: rgba(60,45,10,.18);
-    --av-s: 70%; --av-l: 84%;
-    --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.8c1.7 1.4 3.2 3 4.7 4.7 3.3-3.9 6.5-7.6 10.3-11.1' fill='none' stroke='%2326221d' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E");
-    color-scheme: light;
-  }
-  /* ---------- chalkboard (dark) ---------- */
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper: #232a26; --paper-2: #2c3530; --ink: #eeeae0; --ink-soft: #c2bdb2; --ink-faint: #8b8a80;
-      --dot: rgba(238,234,224,.07); --hover: rgba(232,197,71,.09);
-      --hl: rgba(232,197,71,.42); --hl-solid: #e8c547; --hl-text: #1d221f;
-      --blue: #93b8ff; --red: #ff8f80; --green: #92d9a9; --orange: #f4b467;
-      --note: #4c4a2c; --note-err: #573631; --note-shadow: rgba(0,0,0,.4);
-      --av-s: 30%; --av-l: 36%;
-      color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --paper: #232a26; --paper-2: #2c3530; --ink: #eeeae0; --ink-soft: #c2bdb2; --ink-faint: #8b8a80;
-    --dot: rgba(238,234,224,.07); --hover: rgba(232,197,71,.09);
-    --hl: rgba(232,197,71,.42); --hl-solid: #e8c547; --hl-text: #1d221f;
-    --blue: #93b8ff; --red: #ff8f80; --green: #92d9a9; --orange: #f4b467;
-    --note: #4c4a2c; --note-err: #573631; --note-shadow: rgba(0,0,0,.4);
-    --av-s: 30%; --av-l: 36%;
-    color-scheme: dark;
-  }
+  <script>
+    // Apply the theme before first paint (saved choice, else the system setting).
+    (() => {
+      let saved = null;
+      try { saved = localStorage.getItem("theme"); } catch {}
+      const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = saved || (dark ? "dark" : "light");
+    })();
+  </script>
 
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background-color: var(--paper);
-    background-image: radial-gradient(var(--dot) 1.1px, transparent 1.4px);
-    background-size: 22px 22px;
-    color: var(--ink);
-    font: 18px/1.4 "Patrick Hand", "Comic Sans MS", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: var(--blue); }
-  .mono { font-family: "Courier Prime", ui-monospace, Menlo, monospace; font-size: 14.5px; }
-  [hidden] { display: none !important; }
-  svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-  /* ---------- the pencil-stroke box ---------- */
-  .sk { position: relative; --r: 14px 26px 12px 22px / 22px 12px 26px 14px; --r2: 24px 12px 22px 15px / 14px 24px 13px 22px; --bw: 2px; }
-  .sk::before, .sk::after { content: ""; position: absolute; pointer-events: none; }
-  .sk::before { inset: 0; border: var(--bw) solid var(--ink); border-radius: var(--r); filter: url(#rough); }
-  .sk::after { inset: 3px -2px -2px 2px; border: 1.2px solid var(--ink); border-radius: var(--r2); opacity: .32; filter: url(#rough2); }
-  .sk.thin { --bw: 1.5px; }
-  .sk.thin::after { display: none; }
-
-  /* ---------- top bar ---------- */
-  .topbar { max-width: 1120px; margin: 0 auto; padding: 18px 16px 6px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
-  .brand { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
-  .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; background: var(--hl-solid); color: var(--hl-text); --r: 52% 48% 55% 45% / 46% 56% 44% 54%; --r2: 46% 54% 44% 56% / 55% 45% 53% 47%; border-radius: var(--r); transform: rotate(-4deg); }
-  .brand-mark svg { width: 26px; height: 26px; stroke-width: 2; }
-  .brand-name { font-family: "Caveat", cursive; font-weight: 700; font-size: 34px; line-height: 1; letter-spacing: .3px; }
-  .brand-name small { display: block; font-family: "Patrick Hand", sans-serif; font-size: 14px; color: var(--ink-faint); font-weight: 400; letter-spacing: 0; margin-top: 2px; }
-  .tabs { display: flex; gap: 6px; }
-  .tab { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink-soft); font: 700 27px/1 "Caveat", cursive; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
-  .tab:hover { color: var(--ink); }
-  .tab.active { color: var(--ink); }
-  .tab.active::after { content: ""; position: absolute; z-index: -1; left: 2px; right: 2px; bottom: 5px; height: 14px; background: var(--hl); border-radius: 3px 9px 4px 10px; transform: rotate(-1.2deg); filter: url(#rough); }
-  .count { display: inline-grid; place-items: center; min-width: 26px; height: 26px; margin-left: 4px; color: var(--red); font: 700 19px/1 "Caveat", cursive; border: 2px solid var(--red); border-radius: 55% 45% 52% 48% / 48% 55% 45% 52%; transform: rotate(-6deg); vertical-align: 3px; }
-  .spacer { flex: 1; }
-  .top-actions { display: flex; gap: 8px; }
-
-  /* ---------- buttons & fields ---------- */
-  .btn { position: relative; z-index: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border: 0; background: var(--paper); color: var(--ink); font: 18px "Patrick Hand", sans-serif; cursor: pointer; white-space: nowrap; transition: transform .12s; --r: 255px 18px 225px 18px / 18px 225px 18px 255px; border-radius: var(--r); }
-  .btn::before, .btn::after { content: ""; position: absolute; pointer-events: none; }
-  .btn::before { inset: 0; border: 2px solid var(--ink); border-radius: var(--r); filter: url(#rough); }
-  .btn:hover:not(:disabled) { transform: rotate(-1.2deg) translateY(-1px); }
-  .btn:active:not(:disabled) { transform: translateY(1px); }
-  .btn:disabled { opacity: .45; cursor: default; }
-  /* primary: yellow marker fill (on ::before, with the pencil border) over a scribbled ink shadow (::after) */
-  .btn.primary { background: none; color: var(--hl-text); }
-  .btn.primary::before { background: var(--hl-solid); z-index: -1; }
-  .btn.primary::after { inset: 4px -4px -4px 4px; border-radius: var(--r); background: var(--ink); z-index: -2; opacity: .85; filter: url(#rough); }
-  .btn.danger { color: var(--red); }
-  .btn.danger::before { border-color: var(--red); }
-  .btn.danger-solid { background: var(--red); color: #fff; }
-  .btn.danger-solid::before { border-color: var(--ink); }
-  .btn.ghost { background: none; }
-  .btn.ghost::before { display: none; }
-  .btn.ghost:hover:not(:disabled) { background: var(--hover); border-radius: 40% 55% 45% 60% / 55% 45% 60% 40%; }
-  .btn.icon { width: 40px; padding: 0; }
-  .btn.sm { height: 34px; padding: 0 12px; font-size: 17px; }
-  .btn.sm.icon { width: 34px; padding: 0; }
-
-  .field { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; background: var(--paper); --r: 8px 22px 10px 18px / 18px 10px 22px 8px; border-radius: var(--r); }
-  .field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--ink); font: 18px "Patrick Hand", sans-serif; }
-  .field input::placeholder { color: var(--ink-faint); }
-  .field svg { color: var(--ink-soft); }
-  .field:focus-within { background: var(--hover); }
-  .sel { display: inline-flex; align-items: center; height: 42px; background: var(--paper); --r: 18px 8px 20px 10px / 10px 20px 8px 18px; border-radius: var(--r); }
-  .sel select { appearance: none; border: 0; outline: 0; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9284' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M5.5 9.2c2.2 2 4.3 4 6.5 6.1 2.1-2 4.3-4.1 6.6-6.3'/%3E%3C/svg%3E") no-repeat right 12px center; color: var(--ink); font: 18px "Patrick Hand", sans-serif; height: 100%; padding: 0 34px 0 14px; cursor: pointer; }
-  .sel select option { background: var(--paper); color: var(--ink); }
-  .sel:focus-within { background: var(--hover); }
-  .btn:focus-visible, .tab:focus-visible, .chip:focus-visible { outline: 2px dashed var(--blue); outline-offset: 3px; }
-
-  input[type=checkbox] { appearance: none; width: 20px; height: 20px; margin: 0; flex: none; border: 2px solid var(--ink); border-radius: 4px 7px 3px 8px / 7px 3px 8px 4px; background: transparent; cursor: pointer; }
-  input[type=checkbox]:checked { background: var(--check) center / 17px no-repeat, var(--hl-solid); }
-  input[type=checkbox]:focus-visible { outline: 2px dashed var(--blue); outline-offset: 2px; }
-
-  /* ---------- layout ---------- */
-  main { max-width: 1120px; margin: 0 auto; padding: 18px 16px 90px; }
-  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
-  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-  h2 { font: 700 40px/1 "Caveat", cursive; margin: 0; }
-  .page-head p { margin: 6px 0 0; color: var(--ink-soft); }
-  .scribble { font: 700 25px/1 "Caveat", cursive; color: var(--ink-soft); margin: 4px 0 12px 4px; min-height: 25px; }
-
-  /* ---------- stats ---------- */
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 10px 0 26px; }
-  .stat { padding: 14px 18px 16px; background: var(--paper); min-width: 0; }
-  .stat:nth-child(1) { transform: rotate(-.5deg); }
-  .stat:nth-child(2) { transform: rotate(.4deg); --r: 22px 12px 26px 14px / 14px 26px 12px 22px; }
-  .stat:nth-child(3) { transform: rotate(-.3deg); --r: 12px 24px 14px 20px / 24px 14px 20px 12px; }
-  .stat-label { color: var(--ink-soft); font-size: 17px; }
-  .stat-value { font: 700 46px/1.05 "Caveat", cursive; }
-  .stat-sub { color: var(--ink-faint); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .meter { height: 18px; margin-top: 10px; padding: 3px; display: flex; --r: 6px 12px 5px 10px / 10px 5px 12px 6px; }
-  .meter > div { height: 100%; transition: width .5s; }
-  .meter .mine { background: repeating-linear-gradient(-45deg, var(--ink) 0 1.6px, transparent 1.6px 5px); }
-  .meter .other { background: repeating-linear-gradient(-45deg, var(--ink-faint) 0 1px, transparent 1px 7px); }
-  .meter.warn .mine { background: repeating-linear-gradient(-45deg, var(--red) 0 2px, transparent 2px 5px); }
-
-  /* ---------- lists ---------- */
-  .list { background: var(--paper); padding: 4px 0; }
-  .item { position: relative; }
-  .item + .item::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; border-top: 1.6px solid var(--ink-faint); filter: url(#rough); opacity: .8; }
-  .row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; min-width: 0; }
-  .row.clickable { cursor: pointer; }
-  .row.clickable:hover { background: var(--hover); }
-  .avatar { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; font: 700 26px/1 "Caveat", cursive; color: var(--ink); text-transform: uppercase; background: hsl(var(--h) var(--av-s) var(--av-l)); border-radius: 52% 48% 55% 45% / 46% 56% 44% 54%; }
-  .avatar::before { content: ""; position: absolute; inset: -1px; border: 2px solid var(--ink); border-radius: inherit; filter: url(#rough); }
-  .row-main { flex: 1; min-width: 0; }
-  .name { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .name .org { color: var(--ink-faint); }
-  .sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--ink-soft); font-size: 16px; margin-top: 3px; }
-  .tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; font-size: 15px; white-space: nowrap; color: var(--ink-soft); border: 1.5px solid currentColor; border-radius: 12px 4px 13px 5px / 5px 13px 4px 12px; }
-  .tag svg { width: 15px; height: 15px; }
-  .tag.blue { color: var(--blue); }
-  .tag.ok { color: var(--green); }
-  .tag.warn { color: var(--orange); }
-  .tag.danger { color: var(--red); }
-  .tag.hl { border-color: transparent; background: var(--hl); color: var(--ink); }
-  .row-side { display: flex; align-items: center; gap: 2px; flex: none; }
-  .size { font: 700 25px/1 "Caveat", cursive; min-width: 84px; text-align: right; margin-right: 10px; }
-  .chev { color: var(--ink-faint); transition: transform .2s; }
-  .item.open .chev { transform: rotate(90deg); }
-  .stat-inline { display: inline-flex; align-items: center; gap: 4px; }
-  .stat-inline svg { width: 17px; height: 17px; }
-
-  .files { padding: 2px 18px 16px 88px; }
-  .path-hint { color: var(--ink-faint); padding: 0 0 6px; word-break: break-all; }
-  .file-row { display: flex; gap: 10px; align-items: center; padding: 4px 0; }
-  .file-row .p { flex: 1; min-width: 0; word-break: break-all; }
-  .file-row .s { color: var(--ink-soft); white-space: nowrap; }
-  .file-row svg { width: 18px; height: 18px; color: var(--ink-faint); }
-  .file-row.weight svg { color: var(--blue); }
-
-  /* ---------- progress ---------- */
-  .progress { height: 16px; margin-top: 8px; padding: 3px; --r: 6px 12px 5px 10px / 10px 5px 12px 6px; --bw: 1.6px; }
-  .progress::after { display: none; }
-  .progress > div { height: 100%; background: repeating-linear-gradient(-45deg, var(--ink) 0 1.6px, transparent 1.6px 5px); transition: width .6s ease; }
-  .progress.indeterminate > div { width: 28% !important; animation: scribble 1.4s ease-in-out infinite alternate; }
-  @keyframes scribble { from { margin-left: 0; } to { margin-left: 72%; } }
-
-  /* ---------- empty states ---------- */
-  .empty { text-align: center; padding: 34px 20px 40px; color: var(--ink-soft); }
-  .empty .doodle { width: 170px; height: 120px; color: var(--ink); margin: 0 auto 4px; display: block; }
-  .empty h3 { font: 700 34px/1.1 "Caveat", cursive; margin: 0 0 4px; color: var(--ink); }
-  .empty p { margin: 0 0 20px; }
-  .loading { padding: 28px; text-align: center; font: 700 26px "Caveat", cursive; color: var(--ink-soft); }
-  .loading span { display: inline-block; animation: wiggle 1s ease-in-out infinite; }
-  .loading span:nth-child(2) { animation-delay: .15s; } .loading span:nth-child(3) { animation-delay: .3s; }
-  @keyframes wiggle { 50% { transform: translateY(-4px) rotate(-6deg); } }
-  .error-box { padding: 14px 18px; color: var(--red); background: var(--note-err); --r: 10px 20px 12px 18px / 18px 12px 20px 10px; border-radius: var(--r); }
-
-  /* ---------- notes & notices ---------- */
-  .notice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin-bottom: 14px; font-size: 17px; border-radius: 10px 18px 12px 16px; }
-  .notice svg { margin-top: 1px; }
-  .notice.note { background: var(--note); transform: rotate(-.4deg); box-shadow: 2px 3px 0 var(--note-shadow); border-radius: 2px; }
-  .notice.ok { color: var(--green); }
-  .notice.ok::before, .notice.info::before { border-style: dashed; border-color: currentColor; }
-  .notice.info { color: var(--blue); }
-  .notice b { color: var(--ink); }
-  .notice .btn { margin-top: 8px; }
-
-  /* ---------- drawer ---------- */
-  .backdrop { position: fixed; inset: 0; background: rgba(30,26,20,.35); z-index: 40; opacity: 0; transition: opacity .2s; }
-  .backdrop.show { opacity: 1; }
-  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(580px, 100vw); z-index: 41; display: flex; flex-direction: column; background-color: var(--paper); background-image: radial-gradient(var(--dot) 1.1px, transparent 1.4px); background-size: 22px 22px; box-shadow: -10px 0 30px rgba(0,0,0,.18); transform: translateX(104%); transition: transform .25s ease; }
-  .drawer::before { content: ""; position: absolute; left: 0; top: -20px; bottom: -20px; border-left: 2.5px solid var(--ink); filter: url(#rough); }
-  .drawer.show { transform: none; }
-  .drawer-head { padding: 20px 22px 10px; }
-  .drawer-title { display: flex; align-items: flex-start; gap: 14px; }
-  .drawer-title h3 { margin: 0; font: 700 32px/1.05 "Caveat", cursive; word-break: break-all; }
-  .drawer-title .org { color: var(--ink-faint); font-size: 24px; }
-  .drawer-body { flex: 1; overflow: auto; padding: 8px 22px 16px; }
-  .drawer-foot { position: relative; padding: 14px 22px 18px; display: flex; align-items: center; gap: 14px; }
-  .drawer-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: 0; border-top: 2px solid var(--ink); filter: url(#rough); }
-  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
-  .fact { padding: 6px 10px 8px; min-width: 0; --bw: 1.5px; }
-  .fact::after { display: none; }
-  .fact .k { font-size: 14px; color: var(--ink-faint); }
-  .fact .v { font: 700 23px/1.1 "Caveat", cursive; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .chip { position: relative; height: 32px; padding: 0 12px; border: 0; background: none; color: var(--ink-soft); font: 16px "Patrick Hand", sans-serif; cursor: pointer; border-radius: 16px 6px 15px 7px / 7px 15px 6px 16px; }
-  .chip::before { content: ""; position: absolute; inset: 0; border: 1.5px solid currentColor; border-radius: inherit; }
-  .chip:hover { color: var(--ink); }
-  .chip.on { background: var(--hl); color: var(--ink); }
-  .chip.on::before { border-color: var(--ink); }
-  .pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; cursor: pointer; border-radius: 8px 14px 6px 12px; }
-  .pick:hover { background: var(--hover); }
-  .pick .p { flex: 1; min-width: 0; word-break: break-all; }
-  .pick .s { color: var(--ink-soft); white-space: nowrap; }
-  .pick svg { width: 18px; height: 18px; color: var(--ink-faint); }
-  .pick.weight svg { color: var(--blue); }
-  .group-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 8px; margin: 12px 0 2px; }
-  .group-head .t { font: 700 26px/1 "Caveat", cursive; }
-  .group-head .s { color: var(--ink-soft); }
-  .foot-info { flex: 1; min-width: 0; }
-  .foot-info .big { font: 700 34px/1 "Caveat", cursive; }
-  .foot-info .small { color: var(--ink-soft); font-size: 16px; }
-  .foot-info .small.warn { color: var(--red); }
-
-  /* ---------- modal (taped sheet) ---------- */
-  .modal { position: fixed; z-index: 51; left: 50%; top: 50%; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: visible; background: var(--paper); padding: 26px 24px 22px; opacity: 0; transform: translate(-50%, -46%) rotate(-1deg); transition: opacity .18s, transform .18s; box-shadow: 4px 8px 24px rgba(0,0,0,.22); }
-  .modal.wide { width: min(560px, calc(100vw - 32px)); }
-  .modal.show { opacity: 1; transform: translate(-50%, -50%) rotate(-.4deg); }
-  .tape { position: absolute; top: -12px; left: 50%; width: 110px; height: 26px; margin-left: -55px; background: rgba(255,240,160,.7); transform: rotate(-3deg); box-shadow: 0 1px 2px rgba(0,0,0,.08); z-index: 1; }
-  :root[data-theme="dark"] .tape { background: rgba(232,226,200,.28); }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tape { background: rgba(232,226,200,.28); } }
-  .modal h3 { margin: 0 0 8px; font: 700 36px/1.1 "Caveat", cursive; }
-  .modal p { margin: 0 0 18px; color: var(--ink-soft); word-break: break-word; }
-  .modal .actions { display: flex; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
-  .modal .x { position: absolute; top: 12px; right: 12px; }
-  .token-status { display: flex; gap: 14px; align-items: center; padding: 12px 14px; margin: 6px 0 16px; }
-  .token-status .who { font: 700 27px/1.1 "Caveat", cursive; }
-  .token-status .meta { color: var(--ink-soft); font-size: 16px; }
-  .fine { color: var(--ink-faint); font-size: 15.5px; margin: 16px 0 0; padding-left: 20px; }
-  .fine li { margin-bottom: 4px; }
-
-  /* ---------- sticky-note toasts ---------- */
-  .toasts { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; max-width: calc(100vw - 32px); }
-  .toast { display: flex; align-items: center; gap: 8px; padding: 12px 18px; background: var(--note); color: var(--ink); font-size: 18px; transform: rotate(-1.5deg); box-shadow: 3px 5px 12px var(--note-shadow); animation: drop .25s ease; }
-  .toast:nth-child(even) { transform: rotate(1.2deg); }
-  .toast.err { background: var(--note-err); }
-  @keyframes drop { from { opacity: 0; transform: translateY(14px) rotate(4deg); } }
-
-  @media (max-width: 760px) {
-    .topbar { gap: 8px 14px; padding-top: 14px; }
-    .tabs { order: 3; width: 100%; justify-content: space-between; }
-    .tab { font-size: 24px; padding: 6px 4px; }
-    .label-long { display: none; }
-    .stats { grid-template-columns: 1fr 1fr; gap: 12px; }
-    .stats .stat:last-child { grid-column: span 2; }
-    .stat-value { font-size: 38px; }
-    .facts { grid-template-columns: 1fr 1fr; }
-    .size, .hide-sm, .item .chev { display: none !important; }
-    .files { padding-left: 16px; }
-    .row { gap: 10px; padding: 12px; }
-  }
-  @media (min-width: 761px) { .show-sm { display: none !important; } }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-</style>
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/views.css">
+  <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
 
-<!-- pencil filters + hand-drawn icons -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
+  <!-- Pencil filters for the .sk outlines (CSS can only reference filters defined in the page). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="4" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="4" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
     <filter id="rough2" x="-10%" y="-10%" width="120%" height="120%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="11" result="n"/>
-      <feDisplacementMap in="SourceGraphic" in2="n" scale="4" xChannelSelector="G" yChannelSelector="R"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="11" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="G" yChannelSelector="R"/>
     </filter>
-  </defs>
-  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 3.2c2.7 1.4 5.4 2.9 8 4.4.1 3 .1 6 0 9-2.6 1.6-5.3 3-8 4.4-2.7-1.4-5.3-2.9-8-4.4-.1-3-.1-6 0-9 2.7-1.5 5.300-3 8-4.4z"/><path d="M4.2 7.7c2.6 1.4 5.2 2.9 7.8 4.4 2.7-1.5 5.3-3 7.9-4.6M12 12.1c.1 3 0 6 .1 9"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24"><path d="M10.5 4.2c3.6-.3 6.4 2.4 6.4 6 0 3.5-2.8 6.3-6.3 6.3-3.6 0-6.4-2.7-6.4-6.2.1-3.3 2.6-5.9 6.1-6.2.6 0 1.2.1 1.7.3"/><path d="M15.2 15.4c1.8 1.7 3.5 3.4 5.3 5.2M15.9 14.8c1.6 1.9 3.2 3.7 4.8 5.7"/></symbol>
-  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3.5c.1 3.9-.1 7.9.1 11.6"/><path d="M7.6 11.2c1.5 1.4 2.9 2.9 4.4 4.3 1.4-1.5 2.9-3 4.5-4.4"/><path d="M4.5 19.8c5-.2 10-.3 15.1-.1"/></symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6.8c5.3-.4 10.7-.3 16 .1"/><path d="M9.3 6.6c-.1-1.2.2-2.4.5-2.6 1.4-.3 3-.3 4.4 0 .3.6.4 1.6.3 2.6"/><path d="M6.2 7.2c.3 4.3.6 8.6 1.1 12.9 3.2.3 6.4.3 9.6-.1.4-4.3.7-8.5 1-12.8"/><path d="M10.2 10.5l.3 6.4M13.9 10.4l-.2 6.6"/></symbol>
-  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 10.5c-.9-3.5-4-6-7.6-5.9-2.4 0-4.6 1.2-6 3.1"/><path d="M4.8 4.6c-.2 1.2-.1 2.4.2 3.6 1.2-.1 2.4-.3 3.6-.6"/><path d="M4.5 13.6c.9 3.4 4 5.9 7.6 5.8 2.4 0 4.6-1.2 6-3.1"/><path d="M19.3 19.5c.2-1.2.1-2.4-.2-3.6-1.2.1-2.4.3-3.6.6"/></symbol>
-  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M13.8 4.2c2-.1 4-.2 6 0 .2 2 .2 4 0 6"/><path d="M19.6 4.5c-2.9 3-5.9 5.9-8.9 8.8"/><path d="M17.8 13.8c.1 1.9.1 3.9-.1 5.8-4.2.3-8.5.3-12.7 0-.2-4.2-.3-8.4 0-12.6 1.9-.2 3.8-.2 5.7-.1"/></symbol>
-  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.2 6c4 3.9 7.9 7.9 11.7 12.1M17.9 5.8c-3.9 4-7.8 8.1-11.8 12.3"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.2 5.8c2.1 2 4.2 4.1 6.1 6.3-2 2-4 4.1-6.1 6.1"/></symbol>
-  <symbol id="i-file" viewBox="0 0 24 24"><path d="M13.8 3.4c-2.6 0-5.2 0-7.8.2-.2 5.6-.2 11.3.1 16.9 4 .2 8 .2 12-.1.2-3.9.2-7.8 0-11.7-1.4-1.8-2.8-3.6-4.3-5.3z"/><path d="M13.6 3.6c0 1.6-.1 3.3.1 4.9 1.5.1 3.1.1 4.6 0M8.8 13c2.1-.1 4.2-.1 6.3 0M8.8 16.3c1.6 0 3.2-.1 4.8 0"/></symbol>
-  <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 8.2c2.1-.1 3.8 1.6 3.8 3.7.1 2.1-1.6 3.9-3.7 3.9-2.2.1-3.9-1.6-3.9-3.7 0-2 1.6-3.8 3.6-3.9"/><path d="M12 2.8v2.3M12.1 19v2.2M4.9 5l1.6 1.6M17.5 17.4l1.6 1.7M2.8 12.1h2.3M19 11.9h2.2M5 19l1.6-1.6M17.4 6.6L19 4.9"/></symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.8 14.6c-1 .4-2.2.6-3.3.6-4.4 0-8-3.5-8-7.9 0-1.3.3-2.5.8-3.6-3.3 1.1-5.7 4.3-5.6 8 .1 4.6 3.9 8.3 8.5 8.2 3.3 0 6.3-2.1 7.6-5.3z"/><path d="M16.5 4.2l.4 1.4M15.8 5l1.6-.3"/></symbol>
-  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.6c-3 5.3-6 10.6-8.9 16 6 .3 11.9.3 17.9 0-3-5.3-6-10.7-9-16"/><path d="M12 9.6c-.1 1.8 0 3.5.1 5.2M12 17.6v.3"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.8 12.6c1.6 1.4 3.2 3 4.6 4.6 3.1-3.7 6.3-7.3 9.9-10.8"/></symbol>
-  <symbol id="i-lock" viewBox="0 0 24 24"><path d="M6 11c4-.2 8-.2 12 0 .2 3.1.2 6.2 0 9.3-4 .2-8 .2-12 0-.2-3.1-.2-6.2 0-9.3z"/><path d="M8.4 10.8c-.1-1.6-.1-3.4.6-4.8 1.3-2.4 4.8-2.6 6.2-.3.8 1.4.8 3.3.7 5M12 14.6v2.6"/></symbol>
-  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 19.6c-2.8-1.9-7.6-5.2-7.8-9.3-.1-2.7 2.3-4.8 4.8-4.3 1.3.3 2.4 1.2 3 2.4.6-1.3 1.8-2.2 3.2-2.4 2.5-.4 4.8 1.7 4.6 4.3-.3 4-5 7.4-7.8 9.3z"/></symbol>
-  <symbol id="i-retry" viewBox="0 0 24 24"><path d="M4.6 12.2c0 4.1 3.4 7.5 7.6 7.4 4.1 0 7.4-3.4 7.3-7.5-.1-4.1-3.4-7.4-7.6-7.3-2.2 0-4.2 1-5.6 2.6"/><path d="M4.4 4.3c.1 1.5.2 3.1.4 4.6 1.5-.1 3-.3 4.5-.5"/></symbol>
-  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M3.8 6.7c1.1 0 2.200 0 3.2 0M11.2 6.6c3 0 6 0 9 .1M3.9 12.2c3.200-.1 6.4 0 9.6 0M17.6 12.1c.9 0 1.8 0 2.6.1M3.8 17.6c1.8-.1 3.6 0 5.4 0M13.2 17.7c2.4-.1 4.7-.1 7 0"/><path d="M9.1 4.7c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2c.1-1.2.9-2 2.1-2"/><path d="M15.5 10.2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2c.1-1.2.9-2 2.1-2"/><path d="M11.2 15.6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2c.1-1.2.9-2 2.1-2"/></symbol>
-  <symbol id="i-key" viewBox="0 0 24 24"><path d="M8.1 8.1c2.2-.1 4 1.7 4 3.9 0 2.2-1.8 4-4 4-2.2.1-4-1.7-4-3.9-.1-2.2 1.6-4 3.8-4"/><path d="M12 12.1c2.8-.1 5.5-.1 8.3 0M17.3 12.2c0 1.1 0 2.2.1 3.3M20 12.1c0 .8 0 1.6.1 2.4"/></symbol>
-  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12.2c2-3.6 5.3-6 9.2-6 3.9 0 7.2 2.4 9.2 5.9-2 3.6-5.3 5.9-9.2 5.9-3.9.1-7.2-2.3-9.2-5.8z"/><path d="M12 9.4c1.5-.1 2.7 1.1 2.7 2.6s-1.2 2.7-2.7 2.7-2.7-1.2-2.700-2.6c0-1.5 1.1-2.6 2.6-2.7"/></symbol>
-</svg>
+  </svg>
 
-<header class="topbar">
-  <div class="brand">
-    <span class="brand-mark sk"><svg class="i"><use href="#i-cube"/></svg></span>
-    <div class="brand-name">Hoard<small>your Hugging Face shelf</small></div>
-  </div>
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="library">Library</button>
-    <button class="tab" data-tab="browse">Browse<span class="label-long">&nbsp;Hugging Face</span></button>
-    <button class="tab" data-tab="downloads">Downloads<span class="count" id="dl-count" hidden></span></button>
-  </nav>
-  <div class="spacer"></div>
-  <div class="top-actions">
-    <button class="btn ghost icon" id="settings-btn" title="Settings"><svg class="i"><use href="#i-sliders"/></svg></button>
-    <button class="btn ghost icon" id="theme-btn" title="Paper / chalkboard"><svg class="i"><use href="#i-moon"/></svg></button>
-  </div>
-</header>
-
-<main>
-  <!-- ================= LIBRARY ================= -->
-  <section id="tab-library">
-    <div class="stats">
-      <div class="stat sk"><div class="stat-label">models on the shelf</div><div class="stat-value" id="st-count">–</div><div class="stat-sub" id="st-count-sub">&nbsp;</div></div>
-      <div class="stat sk"><div class="stat-label">space they take</div><div class="stat-value" id="st-size">–</div><div class="stat-sub" id="st-size-sub">&nbsp;</div></div>
-      <div class="stat sk"><div class="stat-label">free on disk</div><div class="stat-value" id="st-free">–</div><div class="stat-sub mono" id="st-path">&nbsp;</div><div class="meter sk thin" id="st-meter"><div class="mine"></div><div class="other"></div></div></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark sk"><svg class="i"><use href="/static/icons.svg#i-cube"/></svg></span>
+      <div class="brand-name">Hoard<small>your Hugging Face shelf</small></div>
     </div>
-    <div class="toolbar">
-      <label class="field sk thin"><svg class="i"><use href="#i-search"/></svg><input type="text" id="lib-filter" placeholder="Filter your models…"></label>
-      <span class="sel sk thin"><select id="lib-format"><option value="">All formats</option></select></span>
-      <span class="sel sk thin"><select id="lib-sort"><option value="recent">Recently saved</option><option value="name">Name</option><option value="size">Biggest first</option></select></span>
-      <button class="btn" id="check-all"><svg class="i"><use href="#i-refresh"/></svg><span class="hide-sm">Check for updates</span></button>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="library">Library</button>
+      <button class="tab" data-tab="browse">Browse<span class="wide-only">&nbsp;Hugging Face</span></button>
+      <button class="tab" data-tab="downloads">Downloads<span class="count" id="downloads-count" hidden></span></button>
+    </nav>
+
+    <div class="top-actions">
+      <button class="btn ghost icon" id="settings-open" title="Settings"><svg class="i"><use href="/static/icons.svg#i-sliders"/></svg></button>
+      <button class="btn ghost icon" id="theme-toggle" title="Paper / chalkboard"></button>
     </div>
-    <div id="lib-list"></div>
-  </section>
+  </header>
 
-  <!-- ================= BROWSE ================= -->
-  <section id="tab-browse" hidden>
-    <form class="toolbar" id="search-form">
-      <label class="field sk thin"><svg class="i"><use href="#i-search"/></svg><input type="text" id="q" placeholder="Search models, or paste a repo id like Qwen/Qwen2.5-7B-Instruct" autocomplete="off"></label>
-      <span class="sel sk thin"><select id="task">
-        <option value="">Any task</option>
-        <option value="text-generation">Text generation</option>
-        <option value="image-text-to-text">Vision + text</option>
-        <option value="automatic-speech-recognition">Speech recognition</option>
-        <option value="text-to-speech">Text to speech</option>
-        <option value="text-to-image">Text to image</option>
-        <option value="feature-extraction">Embeddings</option>
-        <option value="sentence-similarity">Sentence similarity</option>
-        <option value="text-classification">Text classification</option>
-        <option value="translation">Translation</option>
-        <option value="image-classification">Image classification</option>
-        <option value="object-detection">Object detection</option>
-      </select></span>
-      <span class="sel sk thin"><select id="sort">
-        <option value="trending_score">Trending</option>
-        <option value="downloads">Most downloaded</option>
-        <option value="likes">Most liked</option>
-        <option value="last_modified">Recently updated</option>
-      </select></span>
-    </form>
-    <p class="scribble" id="results-label"></p>
-    <div id="results"></div>
-  </section>
-
-  <!-- ================= DOWNLOADS ================= -->
-  <section id="tab-downloads" hidden>
-    <div class="page-head">
-      <div><h2>Downloads</h2><p>Stopped or failed ones pick up where they left off when you resume them.</p></div>
-      <button class="btn" id="clear-dl">Clear finished</button>
-    </div>
-    <div id="dl-list"></div>
-  </section>
-</main>
-
-<div class="backdrop" id="backdrop" hidden></div>
-<aside class="drawer" id="drawer" hidden aria-modal="true" role="dialog"></aside>
-<div class="modal sk" id="modal" hidden role="dialog" aria-modal="true"></div>
-<div class="toasts" id="toasts"></div>
-
-<script>
-const $ = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const icon = (n, cls = "") => `<svg class="i ${cls}"><use href="#i-${n}"/></svg>`;
-const fmtBytes = b => { if (!b) return "0 B"; const u = ["B","KB","MB","GB","TB"]; const i = Math.min(Math.floor(Math.log(b)/Math.log(1024)), 4); return (b/1024**i).toFixed(i > 1 ? 1 : 0) + " " + u[i]; };
-const fmtNum = n => n == null ? "–" : n >= 1e6 ? (n/1e6).toFixed(1).replace(/\.0$/,"")+"M" : n >= 1e3 ? (n/1e3).toFixed(1).replace(/\.0$/,"")+"k" : String(n);
-const fmtAgo = s => { if (!s) return "–"; const d = (Date.now() - new Date(s)) / 1000; if (d < 60) return "just now"; for (const [sec, l] of [[31536000,"y"],[2592000,"mo"],[86400,"d"],[3600,"h"],[60,"m"]]) if (d >= sec) return Math.floor(d/sec) + l + " ago"; };
-const fmtDur = s => !isFinite(s) || s <= 0 ? "" : s < 60 ? `${Math.ceil(s)}s` : s < 3600 ? `${Math.floor(s/60)}m ${Math.round(s%60)}s` : `${Math.floor(s/3600)}h ${Math.round(s%3600/60)}m`;
-const splitId = id => { const i = id.indexOf("/"); return i < 0 ? ["", id] : [id.slice(0, i), id.slice(i + 1)]; };
-const avatar = id => { const org = splitId(id)[0] || id; let h = 0; for (const c of org) h = (h * 31 + c.charCodeAt(0)) % 360; return `<div class="avatar" style="--h:${h}">${esc(org[0] || "?")}</div>`; };
-const nameHtml = id => { const [org, name] = splitId(id); return org ? `<span class="org">${esc(org)} / </span>${esc(name)}` : esc(name); };
-const WEIGHT_RE = /\.(safetensors|gguf|bin|pt|pth|onnx|h5|msgpack|tflite|ckpt|mlmodel)$/i;
-const TASKS = { "text-generation": "Text generation", "image-text-to-text": "Vision + text", "automatic-speech-recognition": "Speech recognition", "text-to-speech": "Text to speech", "text-to-image": "Text to image", "feature-extraction": "Embeddings", "sentence-similarity": "Sentence similarity" };
-const taskName = t => TASKS[t] || (t || "").replace(/-/g, " ");
-const loading = (txt = "fetching") => `<div class="list sk"><div class="loading">${esc(txt)}<span>.</span><span>.</span><span>.</span></div></div>`;
-
-// little hand-drawn illustrations for empty states
-const DOODLES = {
-  box: `<svg class="doodle" viewBox="0 0 170 120" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M45 52c14-1 29-1 43 0l38-1c1 17 0 34 1 51-27 2-54 2-81 0-1-17-1-34-1-50z"/><path d="M46 52c-6-7-11-14-17-21 15-1 30-1 45 0 5 7 10 14 14 21"/>
-    <path d="M126 51c5-7 11-14 16-21-15-1-31-1-46 0-3 7-6 14-8 21"/><path d="M88 52c0 16 0 33 1 50" opacity=".5"/>
-    <path d="M60 70c8 0 15 0 22 .5M60 80c5 0 10 0 14 .3" opacity=".5"/>
-    <path d="M85 8c-1 5 0 10 0 15M78 16c2 2 5 5 7 7 2-2 5-5 7-7" stroke-width="2"/><path d="M118 14c2 1 3 2 5 3M126 24c2 0 4 1 6 1M50 16c-2 1-3 2-5 3" opacity=".6"/></svg>`,
-  search: `<svg class="doodle" viewBox="0 0 170 120" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M72 22c17-1 31 12 31 29 0 16-13 30-30 30-17 1-31-12-31-29-1-16 12-29 28-30 2 0 5 0 7 1"/><path d="M97 74c8 8 17 16 25 25M101 71c7 9 15 17 23 26"/>
-    <path d="M62 42c3-4 8-6 13-6" opacity=".5"/><path d="M128 30c3-2 5-3 8-4M131 42c3 0 6 0 9 1M30 82c-3 1-5 3-8 4" opacity=".6"/><path d="M67 47c0-4 3-7 7-7 3 0 6 3 6 6 0 4-5 4-6 8M74 60v1"/></svg>`,
-  arrow: `<svg class="doodle" viewBox="0 0 170 120" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M85 14c1 18 0 37 1 55M69 54c6 6 11 12 17 17 6-5 12-11 18-17"/><path d="M48 92c25-1 50-1 74 0"/><path d="M40 92c0 4 0 8 1 12 29 1 59 1 88 0 1-4 1-8 0-12" opacity=".55"/><path d="M128 28c3-2 5-3 8-4M131 40c3 0 6 0 9 1M38 30c-3-1-5-3-8-4" opacity=".6"/></svg>`,
-};
-const empty = (doodle, title, text, btn = "") => `<div class="list sk"><div class="empty">${DOODLES[doodle]}<h3>${title}</h3><p>${text}</p>${btn}</div></div>`;
-
-function toast(msg, err = false) {
-  const t = document.createElement("div"); t.className = "toast" + (err ? " err" : "");
-  t.innerHTML = icon(err ? "alert" : "check") + `<span>${esc(msg)}</span>`;
-  $("#toasts").append(t); setTimeout(() => t.remove(), 4000);
-}
-
-async function api(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-Requested-With": "hoard", ...(opts.headers || {}) } });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.detail || r.statusText);
-  return data;
-}
-const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-
-// ---------- theme ----------
-function applyTheme(t) {
-  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
-  const dark = t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  $("#theme-btn").innerHTML = icon(dark ? "sun" : "moon");
-}
-$("#theme-btn").onclick = () => {
-  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const next = cur === "dark" ? "light" : "dark"; store.set("theme", next); applyTheme(next);
-};
-applyTheme(store.get("theme"));
-
-// ---------- tabs ----------
-const state = { tab: "library", library: [], libLoaded: false, updates: {}, jobs: [], speed: {}, searched: false, token: null };
-function showTab(tab) {
-  state.tab = tab;
-  $$(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-  ["library","browse","downloads"].forEach(t => $("#tab-"+t).hidden = t !== tab);
-  if (location.hash !== "#" + tab) history.replaceState(null, "", "#" + tab);
-  if (tab === "library") loadLibrary();
-  if (tab === "browse" && !state.searched) runSearch();
-  if (tab === "downloads") renderDownloads();
-}
-$$(".tab").forEach(b => b.onclick = () => showTab(b.dataset.tab));
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { if (!$("#modal").hidden) closeModal(); else closeDrawer(); }
-  if (e.key === "/" && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
-    e.preventDefault(); (state.tab === "browse" ? $("#q") : state.tab === "library" ? $("#lib-filter") : null)?.focus();
-  }
-});
-
-// ---------- modal ----------
-function openModal(html, wide = false) {
-  const m = $("#modal"), bd = $("#backdrop");
-  m.classList.toggle("wide", wide);
-  m.innerHTML = `<span class="tape"></span>` + html;
-  m.hidden = false; bd.hidden = false;
-  requestAnimationFrame(() => { m.classList.add("show"); bd.classList.add("show"); });
-  return m;
-}
-function closeModal() {
-  const m = $("#modal"); if (m.hidden) return;
-  m.classList.remove("show"); const cancel = m._cancel; m._cancel = null; cancel?.();
-  setTimeout(() => { m.hidden = true; if ($("#drawer").hidden) { $("#backdrop").classList.remove("show"); $("#backdrop").hidden = true; } }, 180);
-}
-function confirmBox({ title, text, ok = "Confirm", danger = false }) {
-  return new Promise(res => {
-    const m = openModal(`<h3>${esc(title)}</h3><p>${text}</p><div class="actions"><button class="btn" data-no>Never mind</button><button class="btn ${danger ? "danger-solid" : "primary"}" data-yes>${esc(ok)}</button></div>`);
-    const done = v => { m._cancel = null; closeModal(); res(v); };
-    $("[data-yes]", m).onclick = () => done(true); $("[data-no]", m).onclick = () => done(false);
-    m._cancel = () => res(false); $("[data-no]", m).focus();
-  });
-}
-
-// ================= SETTINGS (Hugging Face token) =================
-async function loadToken() { try { state.token = await api("/api/settings/token"); } catch { state.token = null; } return state.token; }
-
-async function openSettings() {
-  const m = openModal(`<button class="btn ghost icon x" data-close title="Close">${icon("x")}</button><h3>Hugging Face token</h3><div class="loading">checking<span>.</span><span>.</span><span>.</span></div>`, true);
-  $("[data-close]", m).onclick = closeModal;
-  await loadToken(); if (m.hidden) return;
-  renderSettings(m);
-}
-
-function renderSettings(m) {
-  const t = state.token || {};
-  let status;
-  if (!t.source) status = `<div class="token-status sk thin">${icon("key")}<div><div class="who">No token yet</div><div class="meta">Public models download fine. Gated ones (Llama, Gemma…) need a token.</div></div></div>`;
-  else if (t.valid === false) status = `<div class="notice note">${icon("alert")}<div><b>Hugging Face rejected the saved token</b> (${esc(t.hint)}). It may have been revoked; replace it below.</div></div>`;
-  else status = `<div class="token-status sk thin"><div class="avatar" style="--h:48">${esc((t.user || "?")[0])}</div><div style="min-width:0"><div class="who">Signed in as ${esc(t.user)}</div>
-      <div class="meta"><span class="mono">${esc(t.hint)}</span> · ${t.token_name ? esc(t.token_name) + " · " : ""}${esc(t.role === "fineGrained" ? "fine-grained" : t.role || "unknown")} access · ${t.source === "env" ? "from HF_TOKEN on the server" : "saved on the server"}</div></div></div>`;
-  const writeWarn = t.valid && t.role && t.role !== "read"
-    ? `<div class="notice info sk thin">${icon("alert")}<div>This token has <b>${esc(t.role === "fineGrained" ? "fine-grained" : t.role)}</b> access. Hoard only reads, so a <b>Read</b> token is the safer choice.</div></div>` : "";
-  const form = t.ui_writable === false
-    ? `<div class="notice info sk thin">${icon("lock")}<div>This token comes from the <span class="mono">HF_TOKEN</span> setting on the server, so it can't be changed here. Remove it from the server config to manage it from this page.</div></div>`
-    : `<label class="field sk thin" style="margin-bottom:16px">${icon("key")}<input type="password" id="token-input" placeholder="${t.source ? "paste a new token to replace it" : "hf_…"}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn ghost sm icon" id="token-peek" title="Show / hide">${icon("eye")}</button></label>
-       <div class="actions">
-         ${t.source === "ui" ? `<button class="btn danger" id="token-remove">${icon("trash")}Remove</button>` : ""}
-         <button class="btn primary" id="token-save">${icon("check")}<span>Check &amp; save</span></button>
-       </div>`;
-  m.innerHTML = `<span class="tape"></span><button class="btn ghost icon x" data-close title="Close">${icon("x")}</button>
-    <h3>Hugging Face token</h3>
-    ${status}${writeWarn}${form}
-    <ul class="fine">
-      <li>Make one at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens</a>. The <b>Read</b> type is enough.</li>
-      <li>It's checked with Hugging Face, then kept only on the server (an owner-only file in <span class="mono">/config</span>). It's never sent back to the browser.</li>
-      ${t.protected ? "" : `<li style="color:var(--orange)">This page has no password, so anyone on your network could download using the saved token. Set <span class="mono">APP_PASSWORD</span> on the server to lock it.</li>`}
-    </ul>`;
-  $("[data-close]", m).onclick = closeModal;
-  const input = $("#token-input", m);
-  if (!input) return;
-  input.focus();
-  $("#token-peek", m).onclick = () => { input.type = input.type === "password" ? "text" : "password"; input.focus(); };
-  input.onkeydown = e => { if (e.key === "Enter") $("#token-save", m).click(); };
-  $("#token-save", m).onclick = async e => {
-    const btn = e.currentTarget; const label = btn.querySelector("span"); const token = input.value.trim();
-    if (!token) { input.focus(); return toast("Paste a token first", true); }
-    btn.disabled = true; label.textContent = "Checking…";
-    try {
-      const r = await api("/api/settings/token", { method: "PUT", body: JSON.stringify({ token }) });
-      input.value = ""; toast(`Token saved, signed in as ${r.user}`);
-      await loadToken(); renderSettings(m);
-    } catch (err) { toast(err.message, true); btn.disabled = false; label.textContent = "Check & save"; }
-  };
-  $("#token-remove", m)?.addEventListener("click", async () => {
-    try { await api("/api/settings/token", { method: "DELETE" }); toast("Token removed"); await loadToken(); renderSettings(m); }
-    catch (err) { toast(err.message, true); }
-  });
-}
-$("#settings-btn").onclick = openSettings;
-
-// ================= LIBRARY =================
-async function loadLibrary() {
-  if (!state.libLoaded) $("#lib-list").innerHTML = loading("opening the hoard");
-  try {
-    const data = await api("/api/library");
-    state.library = data.models; state.disk = data.disk; state.modelsDir = data.models_dir; state.libLoaded = true;
-    renderStats(); renderFormatFilter(); renderLibrary();
-  } catch (e) { $("#lib-list").innerHTML = `<div class="error-box sk thin">${esc(e.message)}</div>`; }
-}
-
-function renderStats() {
-  const lib = state.library, d = state.disk;
-  const total = lib.reduce((s, m) => s + m.size, 0);
-  const largest = [...lib].sort((a, b) => b.size - a.size)[0];
-  $("#st-count").textContent = lib.length;
-  const fmts = {}; lib.forEach(m => m.formats.forEach(f => fmts[f] = (fmts[f] || 0) + 1));
-  $("#st-count-sub").textContent = Object.entries(fmts).sort((a, b) => b[1] - a[1]).map(([f, n]) => `${n} ${f}`).join(" · ") || "nothing saved yet";
-  $("#st-size").textContent = fmtBytes(total);
-  $("#st-size-sub").textContent = largest ? `biggest: ${splitId(largest.repo_id)[1]} (${fmtBytes(largest.size)})` : " ";
-  $("#st-free").textContent = fmtBytes(d.free);
-  $("#st-path").textContent = `${state.modelsDir} · ${fmtBytes(d.total)} total`;
-  const meter = $("#st-meter"); meter.classList.toggle("warn", d.free / d.total < 0.1);
-  meter.children[0].style.width = (total / d.total * 100) + "%";
-  meter.children[1].style.width = (Math.max(0, d.used - total) / d.total * 100) + "%";
-  meter.title = `Models: ${fmtBytes(total)} · Other data: ${fmtBytes(Math.max(0, d.used - total))} · Free: ${fmtBytes(d.free)}`;
-}
-
-function renderFormatFilter() {
-  const sel = $("#lib-format"), cur = sel.value;
-  const fmts = [...new Set(state.library.flatMap(m => m.formats))].sort();
-  sel.innerHTML = `<option value="">All formats</option>` + fmts.map(f => `<option ${f === cur ? "selected" : ""}>${esc(f)}</option>`).join("");
-}
-
-function libraryRow(m) {
-  const u = state.updates[m.name];
-  const tags = [];
-  if (m.downloading) tags.push(`<span class="tag hl">downloading…</span>`);
-  if (u?.checking) tags.push(`<span class="tag">checking…</span>`);
-  else if (u?.error) tags.push(`<span class="tag danger" title="${esc(u.error)}">check failed</span>`);
-  else if (u?.update_available) tags.push(`<span class="tag warn">update available!</span>`);
-  else if (u) tags.push(`<span class="tag ok">${icon("check")}up to date</span>`);
-  if (!m.managed) tags.push(`<span class="tag" title="This folder was added by hand, not downloaded through Hoard">added by hand</span>`);
-  if (m.include) tags.push(`<span class="tag" title="Only some files of this repo were saved">partial</span>`);
-  return `<div class="item" data-name="${esc(m.name)}">
-    <div class="row clickable" data-act="files">
-      ${icon("chev", "chev")}
-      ${avatar(m.repo_id)}
-      <div class="row-main">
-        <div class="name">${nameHtml(m.repo_id)}</div>
-        <div class="sub">
-          <span class="show-sm"><b>${fmtBytes(m.size)}</b></span>
-          ${m.formats.map(f => `<span class="tag blue">${esc(f)}</span>`).join("")}
-          ${tags.join("")}
-          ${m.pipeline_tag ? `<span>${esc(taskName(m.pipeline_tag))}</span>` : ""}
-          <span>${m.file_count} files</span>
-          ${m.license ? `<span class="hide-sm">${esc(m.license)}</span>` : ""}
-          ${m.managed ? `<span class="hide-sm" title="${esc(m.downloaded_at)}">saved ${fmtAgo(m.downloaded_at)}</span>` : ""}
+  <main>
+    <!-- ============================ Library ============================ -->
+    <section id="tab-library">
+      <div class="stats">
+        <div class="stat sk">
+          <div class="stat-label">models on the shelf</div>
+          <div class="stat-value" id="stat-count">–</div>
+          <div class="stat-sub" id="stat-count-detail">&nbsp;</div>
+        </div>
+        <div class="stat sk">
+          <div class="stat-label">space they take</div>
+          <div class="stat-value" id="stat-size">–</div>
+          <div class="stat-sub" id="stat-size-detail">&nbsp;</div>
+        </div>
+        <div class="stat sk">
+          <div class="stat-label">free on disk</div>
+          <div class="stat-value" id="stat-free">–</div>
+          <div class="stat-sub mono" id="stat-free-detail">&nbsp;</div>
+          <div class="meter sk" id="disk-meter"><div class="mine"></div><div class="other"></div></div>
         </div>
       </div>
-      <div class="row-side">
-        <span class="size">${fmtBytes(m.size)}</span>
-        ${u?.update_available ? `<button class="btn sm primary" data-act="update">${icon("down")}Update</button>` : ""}
-        ${m.managed && !u?.update_available ? `<button class="btn sm ghost icon hide-sm" data-act="check" title="Check for update">${icon("refresh")}</button>` : ""}
-        <a class="btn sm ghost icon hide-sm" href="https://huggingface.co/${esc(m.repo_id)}" target="_blank" rel="noopener" title="Open on Hugging Face">${icon("ext")}</a>
-        <button class="btn sm ghost icon danger" data-act="delete" title="Delete" ${m.downloading ? "disabled" : ""}>${icon("trash")}</button>
+
+      <div class="toolbar">
+        <label class="field sk thin">
+          <svg class="i"><use href="/static/icons.svg#i-search"/></svg>
+          <input type="text" id="library-filter" placeholder="Filter your models…">
+        </label>
+        <span class="select sk thin">
+          <select id="library-format"><option value="">All formats</option></select>
+        </span>
+        <span class="select sk thin">
+          <select id="library-sort">
+            <option value="recent">Recently saved</option>
+            <option value="name">Name</option>
+            <option value="size">Biggest first</option>
+          </select>
+        </span>
+        <button class="btn" id="check-all">
+          <svg class="i"><use href="/static/icons.svg#i-refresh"/></svg><span class="wide-only">Check for updates</span>
+        </button>
       </div>
-    </div>
-    <div class="files" hidden></div>
-  </div>`;
-}
 
-function renderLibrary() {
-  if (!state.library.length) {
-    $("#lib-list").innerHTML = empty("box", "The shelf is empty", "Find a model on Hugging Face and save it here.", `<button class="btn primary" onclick="showTab('browse')">${icon("search")}Browse models</button>`);
-    return;
-  }
-  const f = $("#lib-filter").value.toLowerCase(), fmt = $("#lib-format").value, sort = $("#lib-sort").value;
-  const open = new Set($$("#lib-list .item.open").map(el => el.dataset.name));
-  let items = state.library.filter(m => m.repo_id.toLowerCase().includes(f) && (!fmt || m.formats.includes(fmt)));
-  items.sort(sort === "name" ? (a, b) => a.repo_id.localeCompare(b.repo_id) : sort === "size" ? (a, b) => b.size - a.size : (a, b) => (b.downloaded_at || "").localeCompare(a.downloaded_at || ""));
-  $("#lib-list").innerHTML = items.length ? `<div class="list sk">${items.map(libraryRow).join("")}</div>` : empty("search", "Nothing matches", "No saved model matches this filter.");
-  open.forEach(n => { const el = $(`#lib-list .item[data-name="${CSS.escape(n)}"]`); if (el) toggleFiles(el, true); });
-}
+      <div id="library-list"></div>
+    </section>
 
-async function toggleFiles(item, forceOpen = false) {
-  const box = $(".files", item);
-  if (!forceOpen && item.classList.contains("open")) { item.classList.remove("open"); box.hidden = true; return; }
-  item.classList.add("open"); box.hidden = false;
-  if (!box.dataset.loaded) box.innerHTML = `<div class="path-hint">loading…</div>`;
-  try {
-    const name = item.dataset.name;
-    const files = await api(`/api/library/${encodeURIComponent(name)}/files`);
-    box.dataset.loaded = 1;
-    box.innerHTML = `<div class="path-hint mono">${esc(state.modelsDir)}/${esc(name)}/</div>` + (files.map(f => `<div class="file-row ${WEIGHT_RE.test(f.path) ? "weight" : ""}">${icon(WEIGHT_RE.test(f.path) ? "cube" : "file")}<span class="p mono">${esc(f.path)}</span><span class="s">${fmtBytes(f.size)}</span></div>`).join("") || `<div class="path-hint">empty folder</div>`);
-  } catch (e) { box.innerHTML = `<div class="error-box sk thin">${esc(e.message)}</div>`; }
-}
+    <!-- ============================ Browse ============================ -->
+    <section id="tab-browse" hidden>
+      <form class="toolbar" id="search-form">
+        <label class="field sk thin">
+          <svg class="i"><use href="/static/icons.svg#i-search"/></svg>
+          <input type="text" id="search-query" autocomplete="off"
+                 placeholder="Search models, or paste a repo id like Qwen/Qwen2.5-7B-Instruct">
+        </label>
+        <span class="select sk thin">
+          <select id="search-task">
+            <option value="">Any task</option>
+            <option value="text-generation">Text generation</option>
+            <option value="image-text-to-text">Vision + text</option>
+            <option value="automatic-speech-recognition">Speech recognition</option>
+            <option value="text-to-speech">Text to speech</option>
+            <option value="text-to-image">Text to image</option>
+            <option value="feature-extraction">Embeddings</option>
+            <option value="sentence-similarity">Sentence similarity</option>
+            <option value="text-classification">Text classification</option>
+            <option value="translation">Translation</option>
+            <option value="image-classification">Image classification</option>
+            <option value="object-detection">Object detection</option>
+          </select>
+        </span>
+        <span class="select sk thin">
+          <select id="search-sort">
+            <option value="trending_score">Trending</option>
+            <option value="downloads">Most downloaded</option>
+            <option value="likes">Most liked</option>
+            <option value="last_modified">Recently updated</option>
+          </select>
+        </span>
+      </form>
 
-["#lib-filter", "#lib-format", "#lib-sort"].forEach(s => $(s).addEventListener("input", renderLibrary));
+      <p class="caption" id="search-caption"></p>
+      <div id="search-results"></div>
+    </section>
 
-async function checkOne(name) {
-  state.updates[name] = { checking: true }; renderLibrary();
-  try { state.updates[name] = await api(`/api/library/${encodeURIComponent(name)}/check`); }
-  catch (e) { state.updates[name] = { error: e.message }; }
-  renderLibrary();
-}
-$("#check-all").onclick = async e => {
-  const btn = e.currentTarget; btn.disabled = true;
-  const managed = state.library.filter(m => m.managed);
-  for (const m of managed) await checkOne(m.name);
-  btn.disabled = false;
-  const n = managed.filter(m => state.updates[m.name]?.update_available).length;
-  toast(n ? `${n} update${n > 1 ? "s" : ""} available` : "Everything is up to date");
-};
-
-$("#lib-list").onclick = async e => {
-  const el = e.target.closest("[data-act]"); if (!el || el.tagName === "A") return;
-  const item = el.closest(".item"); if (!item) return;
-  const name = item.dataset.name; const m = state.library.find(x => x.name === name);
-  const act = el.dataset.act;
-  if (act !== "files") e.stopPropagation();
-  try {
-    if (act === "files") toggleFiles(item);
-    else if (act === "check") await checkOne(name);
-    else if (act === "update") {
-      el.disabled = true;
-      await api(`/api/library/${encodeURIComponent(name)}/update`, { method: "POST" });
-      delete state.updates[name]; toast(`Updating ${m.repo_id}`); pollDownloads(); loadLibrary();
-    } else if (act === "delete") {
-      const ok = await confirmBox({ title: "Throw this one out?", text: `<b>${esc(m.repo_id)}</b> (${fmtBytes(m.size)}) will be deleted from the disk for good.`, ok: "Delete it", danger: true });
-      if (!ok) return;
-      await api(`/api/library/${encodeURIComponent(name)}`, { method: "DELETE" });
-      toast(`Deleted ${m.repo_id}`); loadLibrary();
-    }
-  } catch (err) { toast(err.message, true); el.disabled = false; }
-};
-
-// ================= BROWSE =================
-let searchSeq = 0;
-async function runSearch() {
-  state.searched = true;
-  const q = $("#q").value.trim(), task = $("#task").value, sort = $("#sort").value, seq = ++searchSeq;
-  $("#results-label").textContent = "";
-  $("#results").innerHTML = loading("asking Hugging Face");
-  try {
-    const res = await api(`/api/search?q=${encodeURIComponent(q)}&sort=${sort}&task=${encodeURIComponent(task)}&limit=40`);
-    if (seq !== searchSeq) return;
-    if (/^[\w.-]+\/[\w.-]+$/.test(q) && !res.some(r => r.id.toLowerCase() === q.toLowerCase())) res.unshift({ id: q, exact: true });
-    const sortLabel = $("#sort").selectedOptions[0].text.toLowerCase();
-    $("#results-label").textContent = q ? `${res.length} results for “${q}”` : `${sortLabel}${task ? " · " + taskName(task).toLowerCase() : ""} on Hugging Face →`;
-    const saved = new Set(state.library.map(m => m.repo_id));
-    $("#results").innerHTML = res.length ? `<div class="list sk">${res.map(r => `
-      <div class="item"><div class="row clickable" data-repo="${esc(r.id)}">
-        ${avatar(r.id)}
-        <div class="row-main">
-          <div class="name">${nameHtml(r.id)}</div>
-          <div class="sub">
-            ${saved.has(r.id) ? `<span class="tag ok">${icon("check")}on your shelf</span>` : ""}
-            ${r.exact ? `<span class="tag">open by repo id</span>` : ""}
-            ${r.pipeline_tag ? `<span class="tag">${esc(taskName(r.pipeline_tag))}</span>` : ""}
-            ${r.library_name ? `<span class="hide-sm">${esc(r.library_name)}</span>` : ""}
-            ${r.last_modified ? `<span class="hide-sm">updated ${fmtAgo(r.last_modified)}</span>` : ""}
-          </div>
+    <!-- ============================ Downloads ============================ -->
+    <section id="tab-downloads" hidden>
+      <div class="page-head">
+        <div>
+          <h2>Downloads</h2>
+          <p>Stopped or failed ones pick up where they left off when you resume them.</p>
         </div>
-        <div class="row-side sub" style="gap:16px;margin:0">
-          ${r.downloads != null ? `<span class="stat-inline" title="Downloads (last 30 days)">${icon("down")}${fmtNum(r.downloads)}</span>` : ""}
-          ${r.likes != null ? `<span class="stat-inline hide-sm" title="Likes">${icon("heart")}${fmtNum(r.likes)}</span>` : ""}
-          ${icon("chev", "chev")}
-        </div>
-      </div></div>`).join("")}</div>`
-      : empty("search", "No models found", "Try different words or another task.");
-  } catch (e) { if (seq === searchSeq) $("#results").innerHTML = `<div class="error-box sk thin">${esc(e.message)}</div>`; }
-}
-let debounce;
-$("#q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(runSearch, 400); });
-$("#task").onchange = $("#sort").onchange = runSearch;
-$("#search-form").onsubmit = e => { e.preventDefault(); clearTimeout(debounce); runSearch(); };
-$("#results").onclick = e => { const r = e.target.closest("[data-repo]"); if (r) openRepo(r.dataset.repo); };
-
-// ---------- model drawer ----------
-function openDrawer(html) {
-  const d = $("#drawer"), bd = $("#backdrop");
-  d.innerHTML = html; d.hidden = false; bd.hidden = false;
-  requestAnimationFrame(() => { d.classList.add("show"); bd.classList.add("show"); });
-}
-function closeDrawer() {
-  const d = $("#drawer"); if (d.hidden || !$("#modal").hidden) return;
-  d.classList.remove("show"); $("#backdrop").classList.remove("show");
-  setTimeout(() => { d.hidden = true; $("#backdrop").hidden = true; }, 250);
-}
-$("#backdrop").onclick = () => { if (!$("#modal").hidden) closeModal(); else closeDrawer(); };
-
-async function openRepo(id) {
-  const [org, name] = splitId(id);
-  const head = `<div class="drawer-head"><div class="drawer-title">${avatar(id)}<div style="flex:1;min-width:0"><h3>${org ? `<span class="org">${esc(org)} /</span><br>` : ""}${esc(name)}</h3></div>
-    <a class="btn sm ghost icon" href="https://huggingface.co/${esc(id)}" target="_blank" rel="noopener" title="Open on Hugging Face">${icon("ext")}</a>
-    <button class="btn sm ghost icon" data-close title="Close">${icon("x")}</button></div>`;
-  openDrawer(head + `</div><div class="drawer-body">${loading("reading the file list")}</div>`);
-  $("#drawer [data-close]").onclick = closeDrawer;
-  try {
-    const [repo] = await Promise.all([api(`/api/repo?repo_id=${encodeURIComponent(id)}`), state.token ? null : loadToken()]);
-    if ($("#drawer").hidden) return;
-    renderPicker(repo, head);
-  } catch (e) {
-    $("#drawer .drawer-body").innerHTML = `<div class="error-box sk thin">${esc(e.message)}</div>`;
-  }
-}
-
-function renderPicker(repo, head) {
-  const weights = repo.files.filter(f => WEIGHT_RE.test(f.path));
-  const others = repo.files.filter(f => !WEIGHT_RE.test(f.path));
-  const gguf = weights.filter(f => /\.gguf$/i.test(f.path));
-  const hasSt = weights.some(f => /\.safetensors$/i.test(f.path));
-  const hasAltWeights = hasSt && weights.some(f => !/\.safetensors$/i.test(f.path));
-  const quantOf = p => ((p.split("/").pop().match(/(?:^|[-_.])((?:I?Q\d(?:_[A-Z0-9]+)*)|BF16|F16|F32)\.gguf$/i) || [])[1] || "").toUpperCase();
-  const PREFERRED = ["Q4_K_M", "Q5_K_M", "Q6_K", "Q8_0", "Q3_K_M", "IQ4_XS", "Q4_K_S", "Q2_K", "BF16", "F16"];
-  const rank = q => { const i = PREFERRED.indexOf(q); return i < 0 ? 99 : i; };
-  const quants = [...new Set(gguf.map(f => quantOf(f.path)).filter(Boolean))].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
-
-  // Default selection: everything, except duplicate weight formats or a pile of GGUF quantizations.
-  const sel = new Set(repo.files.map(f => f.path));
-  let preset = "all";
-  if (gguf.length > 1) {
-    const def = quants.includes("Q4_K_M") ? "Q4_K_M" : null;
-    preset = def ? "q:" + def : "none-weights";
-    gguf.forEach(f => { if (quantOf(f.path) !== def) sel.delete(f.path); });
-  } else if (hasAltWeights) { preset = "st"; weights.filter(f => !/\.safetensors$/i.test(f.path)).forEach(f => sel.delete(f.path)); }
-
-  const pickRow = f => `<label class="pick ${WEIGHT_RE.test(f.path) ? "weight" : ""}"><input type="checkbox" data-path="${esc(f.path)}" ${sel.has(f.path) ? "checked" : ""}>${icon(WEIGHT_RE.test(f.path) ? "cube" : "file")}<span class="p mono">${esc(f.path)}</span><span class="s">${fmtBytes(f.size)}</span></label>`;
-  const group = (title, files) => files.length ? `<div class="group-head"><span class="t">${title}</span><span class="s">${files.length} files · ${fmtBytes(files.reduce((s, f) => s + f.size, 0))}</span></div>${files.map(pickRow).join("")}` : "";
-  const hasToken = state.token?.source && state.token?.valid !== false;
-
-  const d = $("#drawer");
-  d.innerHTML = head + `
-      <div class="facts">
-        <div class="fact sk"><div class="k">task</div><div class="v" title="${esc(repo.pipeline_tag)}">${esc(taskName(repo.pipeline_tag) || "–")}</div></div>
-        <div class="fact sk"><div class="k">license</div><div class="v" title="${esc(repo.license)}">${esc(repo.license || "–")}</div></div>
-        <div class="fact sk"><div class="k">downloads</div><div class="v">${fmtNum(repo.downloads)}</div></div>
-        <div class="fact sk"><div class="k">whole repo</div><div class="v">${fmtBytes(repo.files.reduce((s, f) => s + f.size, 0))}</div></div>
+        <button class="btn" id="clear-downloads">Clear finished</button>
       </div>
-    </div>
-    <div class="drawer-body">
-      ${repo.gated ? `<div class="notice note">${icon("lock")}<div><b>Gated model.</b> Accept its terms on <a href="https://huggingface.co/${esc(repo.id)}" target="_blank" rel="noopener">its Hugging Face page</a> first. ${hasToken ? `Your token (${esc(state.token.user)}) will be used.` : `You also need a Hugging Face token.<br><button class="btn sm" data-open-settings>${icon("key")}Add token</button>`}</div></div>` : ""}
-      ${repo.in_library ? `<div class="notice ok sk thin">${icon("check")}<div>Already on your shelf. Ticked files that are missing will be added.</div></div>` : ""}
-      ${gguf.length > 1 ? `<div class="notice info sk thin">${icon("cube")}<div>${gguf.length} GGUF files here, one per quantization. ${quants.includes("Q4_K_M") ? "<b>Q4_K_M</b> is ticked: a good balance of size and quality. Bigger (Q5, Q6, Q8) stays closer to the original; smaller (Q3, Q2) loses more." : "Pick the quantization you want."}</div></div>` : ""}
-      ${hasAltWeights && gguf.length <= 1 ? `<div class="notice info sk thin">${icon("cube")}<div>Same weights in several formats here. Only <b>safetensors</b> is ticked to save space.</div></div>` : ""}
-      <div class="presets">
-        <button class="chip" data-preset="all">everything</button>
-        ${hasSt ? `<button class="chip" data-preset="st">safetensors + configs</button>` : ""}
-        ${quants.length > 1 ? quants.slice(0, 8).map(q => `<button class="chip" data-preset="q:${esc(q)}">${esc(q)}</button>`).join("") : ""}
-        <button class="chip" data-preset="none-weights">configs only</button>
-      </div>
-      <label class="field sk thin" style="margin-bottom:6px">${icon("search")}<input type="text" data-pattern placeholder="tick weights matching a pattern, e.g. *Q5_K_M*"></label>
-      ${group("Weights", weights)}
-      ${group("Configs & the rest", others)}
-    </div>
-    <div class="drawer-foot">
-      <div class="foot-info"><div class="big" data-total></div><div class="small" data-sub></div></div>
-      <button class="btn primary" data-download>${icon("down")}Add to hoard</button>
-    </div>`;
-  $("#drawer [data-close]").onclick = closeDrawer;
-  $("[data-open-settings]", d)?.addEventListener("click", openSettings);
+      <div id="downloads-list"></div>
+    </section>
+  </main>
 
-  const boxes = $$("input[type=checkbox]", d);
-  const setPreset = (p, fn) => { preset = p; boxes.forEach(b => b.checked = fn(b.dataset.path)); update(); };
-  const update = () => {
-    const chosen = boxes.filter(b => b.checked).map(b => repo.files.find(f => f.path === b.dataset.path));
-    const size = chosen.reduce((s, f) => s + f.size, 0);
-    const free = state.disk?.free;
-    const tooBig = free != null && size > free;
-    $("[data-total]", d).textContent = fmtBytes(size);
-    const sub = $("[data-sub]", d);
-    sub.textContent = tooBig ? `won't fit: only ${fmtBytes(free)} free` : `${chosen.length} of ${repo.files.length} files` + (free != null ? ` · ${fmtBytes(free)} free` : "");
-    sub.classList.toggle("warn", tooBig);
-    $("[data-download]", d).disabled = !chosen.length || tooBig;
-    $$(".chip", d).forEach(b => b.classList.toggle("on", b.dataset.preset === preset));
-  };
-  $$("[data-preset]", d).forEach(b => b.onclick = () => {
-    const p = b.dataset.preset; $("[data-pattern]", d).value = "";
-    if (p === "all") setPreset(p, () => true);
-    else if (p === "st") setPreset(p, path => !WEIGHT_RE.test(path) || /\.safetensors$/i.test(path));
-    else if (p === "none-weights") setPreset(p, path => !WEIGHT_RE.test(path));
-    else if (p.startsWith("q:")) { const q = p.slice(2); setPreset(p, path => !WEIGHT_RE.test(path) || quantOf(path) === q); }
-  });
-  $("[data-pattern]", d).oninput = e => {
-    const v = e.target.value.trim(); if (!v) return update();
-    const re = new RegExp("^" + v.split("*").map(s => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
-    setPreset("", p => !WEIGHT_RE.test(p) || re.test(p) || re.test(p.split("/").pop()));
-  };
-  d.addEventListener("change", e => { if (e.target.type === "checkbox") { preset = ""; update(); } });
-  $("[data-download]", d).onclick = async e => {
-    const btn = e.currentTarget;
-    const chosen = boxes.filter(b => b.checked).map(b => b.dataset.path);
-    btn.disabled = true;
-    try {
-      await api("/api/downloads", { method: "POST", body: JSON.stringify({ repo_id: repo.id, include: chosen.length === repo.files.length ? null : chosen }) });
-      toast(`Downloading ${repo.id}`); closeDrawer(); pollDownloads();
-    } catch (err) { toast(err.message, true); btn.disabled = false; }
-  };
-  update();
-}
+  <!-- Overlays (filled by js/ui/overlay.js) -->
+  <div class="backdrop" id="backdrop" hidden></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" hidden></aside>
+  <div class="modal sk" id="modal" role="dialog" aria-modal="true" hidden></div>
+  <div class="toasts" id="toasts"></div>
 
-// ================= DOWNLOADS =================
-async function pollDownloads() {
-  try { state.jobs = await api("/api/downloads"); } catch { return; }
-  const now = Date.now();
-  for (const j of state.jobs) {
-    if (j.status !== "downloading") continue;
-    const s = state.speed[j.id];
-    if (s && j.done_bytes > s.b) {
-      const inst = (j.done_bytes - s.b) / ((now - s.t) / 1000);
-      // Bytes land on disk in bursts, so smooth the rate.
-      state.speed[j.id] = { b: j.done_bytes, t: now, rate: s.rate ? s.rate * 0.6 + inst * 0.4 : inst };
-    } else if (!s) state.speed[j.id] = { b: j.done_bytes, t: now, rate: 0 };
-  }
-  const active = state.jobs.filter(j => j.status === "downloading").length;
-  const c = $("#dl-count"); c.hidden = !active; c.textContent = active;
-  if (state.prevActive > active) loadLibrary();
-  state.prevActive = active;
-  if (state.tab === "downloads") renderDownloads();
-}
-
-function renderDownloads() {
-  const jobs = state.jobs;
-  if (!jobs.length) {
-    $("#dl-list").innerHTML = empty("arrow", "Nothing downloading", "Models you save from Browse show up here.", `<button class="btn" onclick="showTab('browse')">${icon("search")}Browse models</button>`);
-    return;
-  }
-  $("#dl-list").innerHTML = `<div class="list sk">${jobs.map(j => {
-    const pct = j.total_bytes ? Math.min(100, j.done_bytes / j.total_bytes * 100) : 0;
-    const rate = state.speed[j.id]?.rate || 0;
-    const eta = rate ? fmtDur((j.total_bytes - j.done_bytes) / rate) : "";
-    const status = {
-      downloading: `<span class="tag hl">${pct.toFixed(0)}%</span>${rate ? `<span>${fmtBytes(rate)}/s</span>` : `<span>warming up…</span>`}${eta ? `<span>~${eta} left</span>` : ""}`,
-      done: `<span class="tag ok">${icon("check")}saved</span><span>${fmtAgo(j.finished_at)}</span>`,
-      cancelled: `<span class="tag warn">stopped</span>`,
-      error: `<span class="tag danger">failed</span><span title="${esc(j.error)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${esc(j.error)}</span>`,
-    }[j.status];
-    return `<div class="item"><div class="row">
-      ${avatar(j.repo_id)}
-      <div class="row-main">
-        <div class="name">${nameHtml(j.repo_id)}</div>
-        <div class="sub">${status}<span>${fmtBytes(Math.min(j.done_bytes, j.total_bytes))} of ${fmtBytes(j.total_bytes)}</span><span class="hide-sm">${j.file_count} files</span></div>
-        ${j.status === "downloading" ? `<div class="progress sk ${pct < 0.5 ? "indeterminate" : ""}"><div style="width:${pct}%"></div></div>` : ""}
-      </div>
-      <div class="row-side">
-        ${j.status === "downloading" ? `<button class="btn sm danger" data-cancel="${esc(j.id)}">Stop</button>` : ""}
-        ${j.status === "cancelled" || j.status === "error" ? `<button class="btn sm" data-retry="${esc(j.id)}">${icon("retry")}Resume</button>` : ""}
-      </div>
-    </div></div>`;
-  }).join("")}</div>`;
-}
-
-$("#dl-list").onclick = async e => {
-  const c = e.target.closest("[data-cancel]"), r = e.target.closest("[data-retry]");
-  try {
-    if (c) { c.disabled = true; await api(`/api/downloads/${c.dataset.cancel}`, { method: "DELETE" }); toast("Download stopped"); }
-    if (r) {
-      const j = state.jobs.find(x => x.id === r.dataset.retry); r.disabled = true;
-      await api("/api/downloads", { method: "POST", body: JSON.stringify({ repo_id: j.repo_id, revision: j.revision, include: j.include ?? null }) });
-      toast(`Resuming ${j.repo_id}`);
-    }
-  } catch (err) { toast(err.message, true); }
-  pollDownloads();
-};
-$("#clear-dl").onclick = async () => { await api("/api/downloads/clear", { method: "POST" }); pollDownloads(); };
-
-// ---------- start ----------
-setInterval(pollDownloads, 1500);
-pollDownloads(); loadToken();
-const initial = location.hash.slice(1);
-showTab(["library","browse","downloads"].includes(initial) ? initial : "library");
-if (state.tab !== "library") loadLibrary();
-</script>
 </body>
 </html>

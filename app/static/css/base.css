@@ -1,0 +1,72 @@
+/* Base: page, typography, and the "pencil stroke" primitive everything else builds on. */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+
+body {
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--dot) 1.1px, transparent 1.4px);
+  background-size: 22px 22px;
+  color: var(--ink);
+  font: 18px/1.4 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--blue); }
+[hidden] { display: none !important; }
+
+.mono { font-family: var(--font-mono); font-size: 14.5px; }
+
+h2 { margin: 0; font: 700 40px/1 var(--font-hand); }
+
+/* Icons from icons.svg: <svg class="i"><use href="/static/icons.svg#i-name"/></svg> */
+svg.i {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------------------
+ * .sk = a box outlined by a wobbly pencil line.
+ *
+ * The outline lives on ::before (main stroke) and ::after (faint second pass),
+ * with uneven radii, and is roughened by the SVG filters #rough / #rough2
+ * defined in index.html. Only the pseudo-elements are filtered, so text stays
+ * crisp. Tweak per element with --r / --r2 (radii) and --bw (line width).
+ * ------------------------------------------------------------------------- */
+.sk {
+  --r: 14px 26px 12px 22px / 22px 12px 26px 14px;
+  --r2: 24px 12px 22px 15px / 14px 24px 13px 22px;
+  --bw: 2px;
+  position: relative;
+}
+.sk::before,
+.sk::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+.sk::before {
+  inset: 0;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  filter: url(#rough);
+}
+.sk::after {
+  inset: 3px -2px -2px 2px;
+  border: 1.2px solid var(--ink);
+  border-radius: var(--r2);
+  opacity: .32;
+  filter: url(#rough2);
+}
+.sk.thin { --bw: 1.5px; }
+.sk.thin::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

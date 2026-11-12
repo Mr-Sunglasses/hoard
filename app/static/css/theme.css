@@ -1,0 +1,94 @@
+/* Theme: fonts and color tokens.
+ *
+ * Light mode is "paper", dark mode is "chalkboard". The active theme is set on
+ * <html data-theme="light|dark"> by the small script in index.html before first
+ * paint, so every color below is defined exactly once per theme.
+ */
+
+@font-face {
+  font-family: "Caveat";
+  src: url("../fonts/Caveat-700.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Patrick Hand";
+  src: url("../fonts/PatrickHand-400.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Courier Prime";
+  src: url("../fonts/CourierPrime-400.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  /* type */
+  --font-hand: "Caveat", "Patrick Hand", cursive;          /* headings, numbers */
+  --font-body: "Patrick Hand", "Comic Sans MS", system-ui, sans-serif;
+  --font-mono: "Courier Prime", ui-monospace, Menlo, monospace;
+
+  /* paper & ink */
+  --paper: #fbf7ee;
+  --ink: #26221d;
+  --ink-soft: #5b544a;
+  --ink-faint: #9a9284;
+  --dot: rgba(38, 34, 29, .13);          /* sketchbook dot grid */
+  --hover: rgba(255, 214, 64, .20);
+
+  /* highlighter */
+  --hl: rgba(255, 214, 64, .75);
+  --hl-solid: #ffe066;
+  --hl-text: #26221d;
+
+  /* pens */
+  --blue: #2c5aa8;
+  --red: #c4372c;
+  --green: #2c7a4b;
+  --orange: #b8640f;
+
+  /* sticky notes & tape */
+  --note: #fff3a6;
+  --note-err: #ffd6cf;
+  --note-shadow: rgba(60, 45, 10, .18);
+  --tape: rgba(255, 240, 160, .7);
+  --backdrop: rgba(30, 26, 20, .35);
+
+  /* avatar pastel (hue comes from the org name) */
+  --avatar-sat: 70%;
+  --avatar-light: 84%;
+
+  /* ticked checkbox: hand-drawn check mark */
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 12.8c1.7 1.4 3.2 3 4.7 4.7 3.3-3.9 6.5-7.6 10.3-11.1' fill='none' stroke='%2326221d' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --paper: #232a26;
+  --ink: #eeeae0;
+  --ink-soft: #c2bdb2;
+  --ink-faint: #8b8a80;
+  --dot: rgba(238, 234, 224, .07);
+  --hover: rgba(232, 197, 71, .09);
+
+  --hl: rgba(232, 197, 71, .42);
+  --hl-solid: #e8c547;
+  --hl-text: #1d221f;
+
+  --blue: #93b8ff;
+  --red: #ff8f80;
+  --green: #92d9a9;
+  --orange: #f4b467;
+
+  --note: #4c4a2c;
+  --note-err: #573631;
+  --note-shadow: rgba(0, 0, 0, .4);
+  --tape: rgba(232, 226, 200, .28);
+  --backdrop: rgba(0, 0, 0, .45);
+
+  --avatar-sat: 30%;
+  --avatar-light: 36%;
+
+  color-scheme: dark;
+}
