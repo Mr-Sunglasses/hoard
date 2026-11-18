@@ -3,7 +3,7 @@
 
 import { $, html, icon } from "../lib/dom.js";
 import { api } from "../lib/api.js";
-import { state } from "../state.js";
+import { state, emit } from "../state.js";
 import { avatar } from "../ui/components.js";
 import { openModal, updateModal, isModalOpen, toast, toastError } from "../ui/overlay.js";
 
@@ -15,6 +15,7 @@ export async function loadToken() {
   } catch {
     state.token = null;
   }
+  emit("status:changed");
   return state.token;
 }
 

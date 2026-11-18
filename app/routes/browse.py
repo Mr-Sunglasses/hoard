@@ -34,8 +34,11 @@ def search(q: str = "", sort: str = "downloads", task: str = "", limit: int = 30
 
 @router.get("/repo")
 def repo(repo_id: str, revision: str = "main"):
-    info = hub.client().model_info(repo_id, revision=revision, files_metadata=True)
-    files = [{"path": s.rfilename, "size": s.size or 0} for s in info.siblings or []]
+    info = hub.client().model_info(repo_id, revision=revision, files_metadata=True, securityStatus=True)
+    files = [
+        {"path": s.rfilename, "size": s.size or 0, "pickle": storage.is_pickle(s.rfilename)}
+        for s in info.siblings or []
+    ]
     return {
         "id": info.id,
         "sha": info.sha,
@@ -47,4 +50,5 @@ def repo(repo_id: str, revision: str = "main"):
         "likes": info.likes,
         "files": sorted(files, key=lambda f: f["path"]),
         "in_library": storage.is_in_library(info.id),
+        "security": hub.security_scan(info),   # Hugging Face's scan of the repo's files
     }

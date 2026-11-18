@@ -9,6 +9,8 @@ export const state = {
   modelsDir: "",
   libraryLoaded: false,
   updates: {},          // folder name -> { checking } | { error } | /check response
+  verifies: {},         // folder name -> /verify response
+  problems: [],         // server setup problems (unwritable folders)
 
   // downloads
   jobs: [],             // from /api/downloads
@@ -25,7 +27,7 @@ export const state = {
  * Events used across views:
  *   "library:changed"   something on disk changed; reload the library
  *   "downloads:changed" a download was started/stopped; poll now
- *   "navigate"          switch tab ({ tab })
+ *   "status:changed"    token or setup problems changed; redraw the warning banner
  */
 const listeners = {};
 

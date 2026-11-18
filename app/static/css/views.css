@@ -191,3 +191,14 @@ main { max-width: 1120px; margin: 0 auto; padding: 18px 16px 90px; }
 @media (min-width: 761px) {
   .narrow-only { display: none !important; }
 }
+
+/* ---------- warning banner under the top bar ---------- */
+.banner { display: grid; gap: 10px; max-width: 1120px; margin: 4px auto 0; padding: 0 16px; }
+.banner .notice { margin: 0; }
+.banner .btn { margin-left: 6px; }
+
+/* ---------- file check in the library ---------- */
+.files .verify { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 8px 4px; }
+.files .verify .hint { padding: 0; }
+.files .verify .notice { flex: 1 1 100%; margin: 0; }
+.files .verify .progress { flex: 1 1 100%; }

@@ -4,6 +4,7 @@ import { $, $$, icon, render } from "./lib/dom.js";
 import { storage } from "./lib/api.js";
 import { state, on } from "./state.js";
 import { initOverlays } from "./ui/overlay.js";
+import { initBanner, renderBanner } from "./ui/banner.js";
 import { initLibrary, loadLibrary } from "./views/library.js";
 import { initBrowse, runSearch } from "./views/browse.js";
 import { initDownloads, pollDownloads, renderDownloads, POLL_INTERVAL_MS } from "./views/downloads.js";
@@ -72,6 +73,7 @@ function initNavigation() {
 
 initTheme();
 initOverlays();
+initBanner();
 initNavigation();
 initLibrary();
 initBrowse();
@@ -80,10 +82,14 @@ $("#settings-open").addEventListener("click", openSettings);
 
 on("library:changed", loadLibrary);
 on("downloads:changed", pollDownloads);
+on("status:changed", renderBanner);
 
 const initialTab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "library";
 showTab(initialTab);
 if (initialTab !== "library") loadLibrary();   // the stats and "on your shelf" tags need it
 loadToken();
 pollDownloads();
-setInterval(pollDownloads, POLL_INTERVAL_MS);
+
+// Poll only while the page is visible; a background tab shouldn't keep the server busy.
+setInterval(() => { if (!document.hidden) pollDownloads(); }, POLL_INTERVAL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollDownloads(); });

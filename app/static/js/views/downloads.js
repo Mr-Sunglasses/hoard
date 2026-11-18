@@ -11,6 +11,9 @@ export const POLL_INTERVAL_MS = 1500;
 
 let lastActiveCount = 0;
 
+const ACTIVE = ["queued", "downloading", "retrying"];
+const isActive = (job) => ACTIVE.includes(job.status);
+
 /** Fetch the job list, update speeds and the badge, and redraw if visible. */
 export async function pollDownloads() {
   try {
@@ -20,7 +23,7 @@ export async function pollDownloads() {
   }
   state.jobs.filter((job) => job.status === "downloading").forEach(trackSpeed);
 
-  const active = state.jobs.filter((job) => job.status === "downloading").length;
+  const active = state.jobs.filter(isActive).length;
   const badge = $("#downloads-count");
   badge.hidden = !active;
   badge.textContent = active;
@@ -43,6 +46,8 @@ function trackSpeed(job) {
   }
 }
 
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
 export function renderDownloads() {
   const list = $("#downloads-list");
   if (!state.jobs.length) {
@@ -61,6 +66,7 @@ function jobRow(job) {
   const percent = job.total_bytes ? Math.min(100, (job.done_bytes / job.total_bytes) * 100) : 0;
   const running = job.status === "downloading";
   const canResume = job.status === "cancelled" || job.status === "error";
+  const done = Math.min(job.done_bytes, job.total_bytes);
   return html`
     <div class="item">
       <div class="row">
@@ -69,14 +75,14 @@ function jobRow(job) {
           <div class="name">${repoName(job.repo_id)}</div>
           <div class="sub">
             ${statusLine(job, percent)}
-            <span>${format.bytes(Math.min(job.done_bytes, job.total_bytes))} of ${format.bytes(job.total_bytes)}</span>
+            <span>${job.status === "queued" ? format.bytes(job.total_bytes) : html`${format.bytes(done)} of ${format.bytes(job.total_bytes)}`}</span>
             <span class="wide-only">${job.file_count} files</span>
           </div>
           ${running && html`
             <div class="progress sk ${percent < 0.5 && "waiting"}"><div style="width:${percent}%"></div></div>`}
         </div>
         <div class="row-side">
-          ${running && html`<button class="btn sm danger" data-stop="${job.id}">Stop</button>`}
+          ${isActive(job) && html`<button class="btn sm danger" data-stop="${job.id}">${job.status === "queued" ? "Cancel" : "Stop"}</button>`}
           ${canResume && html`<button class="btn sm" data-resume="${job.id}">${icon("retry")}Resume</button>`}
         </div>
       </div>
@@ -95,10 +101,16 @@ function statusLine(job, percent) {
   if (job.status === "done") {
     return html`<span class="tag ok">${icon("check")}saved</span><span>${format.ago(job.finished_at)}</span>`;
   }
+  if (job.status === "queued") return html`<span class="tag">waiting for a free slot</span>`;
+  if (job.status === "retrying") {
+    return html`
+      <span class="tag warn">${icon("retry")}retrying at ${clock(job.retry_at)}</span>
+      <span class="error-text" title="${job.error}">${job.error}</span>`;
+  }
   if (job.status === "cancelled") return html`<span class="tag warn">stopped</span>`;
   return html`
     <span class="tag danger">failed</span>
-    <span title="${job.error}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${job.error}</span>`;
+    <span class="error-text" title="${job.error}">${job.error}</span>`;
 }
 
 async function stopDownload(button) {

@@ -6,3 +6,7 @@ models
 config
 docs
 .venv
+.ruff_cache
+.pytest_cache
+tests
+.github

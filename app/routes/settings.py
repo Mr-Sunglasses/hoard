@@ -45,11 +45,13 @@ def save_token(req: TokenRequest):
     try:
         owner = hub.describe_token(token)
     except HfHubHTTPError:
-        raise HTTPException(400, "Hugging Face rejected this token. Check that it's copied correctly and not revoked")
+        raise HTTPException(
+            400, "Hugging Face rejected this token. Check that it's copied correctly and not revoked"
+        ) from None
     try:
         hub.save_token(token)
     except OSError as exc:
-        raise HTTPException(500, f"Could not save the token in {CONFIG_DIR}: {exc.strerror}")
+        raise HTTPException(500, f"Could not save the token in {CONFIG_DIR}: {exc.strerror}") from exc
     return {"ok": True, **owner}
 
 

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:   # the release workflow runs these checks before publishing
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint
+        run: uvx ruff@0.14.5 check .
+      - name: Tests
+        run: uv run --locked pytest -q
+      - name: Check the JavaScript parses
+        run: find app/static/js -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Audit dependencies for known vulnerabilities
+        run: uv export --locked --no-dev --format requirements-txt | uvx pip-audit --strict --disable-pip -r /dev/stdin
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t hoard .
+      - name: Start it like docker-compose.yml does and wait for the health check
+        run: |
+          docker run -d --name hoard --init --read-only --tmpfs /tmp --cap-drop ALL \
+            --security-opt no-new-privileges:true -e APP_PASSWORD=ci hoard
+          for _ in $(seq 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' hoard)" = healthy ] && exit 0
+            sleep 2
+          done
+          docker logs hoard; exit 1
+      - name: Stop it cleanly within Docker's grace period
+        run: |
+          docker stop -t 10 hoard
+          docker logs hoard 2>&1 | grep -q "Application shutdown complete" || { docker logs hoard; exit 1; }
