@@ -1,20 +1,44 @@
 services:
   hoard:
     build: .
+    # Or run a published release instead of building it here (see docs/DEPLOYMENT.md):
+    # image: ghcr.io/mr-sunglasses/hoard:1
     container_name: hoard
     restart: unless-stopped
+    init: true                     # reaps finished download processes
+    # Run as your NAS user so the downloaded files are owned by you, not root.
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
-      - "8080:8080"
+      # Docker's published ports skip ufw rules on Ubuntu. To limit who can connect, set
+      # BIND_ADDRESS to one of the server's own IPs (e.g. its LAN IP), or 127.0.0.1 behind a reverse proxy.
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-8080}:8080"
     volumes:
       # Left side: the folder on your NAS where models are stored. Change it to your path.
       - /srv/models:/models
-      # App settings (the Hugging Face token saved from the UI). Keep this out of any shared folder.
+      # App settings (saved token, download list). Keep this out of any shared folder.
       - ./config:/config
     environment:
-      # Optional: Hugging Face token for gated/private models (Llama, Gemma, ...).
-      # You can also add it from the UI (Settings). If set here, it wins and the UI can't change it.
-      - HF_TOKEN=${HF_TOKEN:-}
-      # Optional: set a password to protect the web UI (any username works).
       - APP_PASSWORD=${APP_PASSWORD:-}
-    # Run as your NAS user so the downloaded files are owned by you, not root.
-    user: "${PUID:-1000}:${PGID:-1000}"
+      - HF_TOKEN=${HF_TOKEN:-}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+      - MAX_PARALLEL_DOWNLOADS=${MAX_PARALLEL_DOWNLOADS:-2}
+      - MIN_FREE_GB=${MIN_FREE_GB:-2}
+
+    # Hardening: nothing in the container can be changed except the two volumes and /tmp,
+    # no Linux capabilities, and no way to gain privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+
+    # Keep logs from filling the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

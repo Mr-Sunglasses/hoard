@@ -47,6 +47,7 @@ class FilePicker {
     this.repo = repo;
     this.paths = repo.files.map((f) => f.path);
     this.quants = quantizations(this.paths);
+    this.flagged = new Set((repo.security?.issues || []).map((f) => f.path));
 
     const { preset, keep } = defaultSelection(this.paths);
     this.preset = preset;
@@ -62,6 +63,10 @@ class FilePicker {
       ${header(repo.id, this.facts())}
       <div class="panel-body">
         ${this.notices()}
+        <div class="notice note" data-pickle-warning hidden>${icon("alert")}<div>
+          <b>Some ticked files use pickle</b> (.bin, .pt, .pth). Loading them with <span class="mono">torch.load()</span>
+          can run code hidden in the file. Prefer safetensors, or load with <span class="mono">weights_only=True</span>.
+        </div></div>
         ${this.presetChips()}
         <label class="field sk thin pattern">${icon("search")}<input type="text" data-pattern placeholder="tick weights matching a pattern, e.g. *Q5_K_M*"></label>
         ${this.fileGroup("Weights", weights)}
@@ -98,7 +103,16 @@ class FilePicker {
     const token = state.token;
     const hasToken = token?.source && token.valid !== false;
 
+    const flagged = repo.security?.issues || [];
+
     return html`
+      ${flagged.length > 0 && html`
+        <div class="notice danger sk thin">${icon("alert")}<div>
+          <b>Hugging Face's security scan flagged ${flagged.length === 1 ? "a file" : `${flagged.length} files`}:</b>
+          <ul class="problems">${flagged.map((f) => html`<li><span class="mono">${f.path}</span> (${f.level || "issue"})</li>`)}</ul>
+          Leave ${flagged.length === 1 ? "it" : "them"} unticked unless you trust this repo.
+        </div></div>`}
+
       ${repo.gated && html`
         <div class="notice note">${icon("lock")}<div>
           <b>Gated model.</b> Accept its terms on
@@ -147,6 +161,8 @@ class FilePicker {
           <input type="checkbox" data-path="${f.path}" ${this.selected.has(f.path) && "checked"}>
           ${icon(isWeight(f.path) ? "cube" : "file")}
           <span class="path mono">${f.path}</span>
+          ${f.pickle && html`<span class="tag warn">pickle</span>`}
+          ${this.flagged.has(f.path) && html`<span class="tag danger">flagged</span>`}
           <span class="size">${format.bytes(f.size)}</span>
         </label>`)}`;
   }
@@ -171,15 +187,17 @@ class FilePicker {
   refresh() {
     const chosen = this.repo.files.filter((f) => this.selected.has(f.path));
     const size = sumSizes(chosen);
-    const free = state.disk?.free;
+    // Hoard keeps some space free on the disk (MIN_FREE_GB on the server).
+    const free = state.disk ? Math.max(0, state.disk.free - (state.disk.reserve || 0)) : null;
     const tooBig = free != null && size > free;
 
     $("[data-total]", this.drawer).textContent = format.bytes(size);
     const detail = $("[data-detail]", this.drawer);
     detail.classList.toggle("too-big", tooBig);
     detail.textContent = tooBig
-      ? `won't fit: only ${format.bytes(free)} free`
-      : `${chosen.length} of ${this.paths.length} files${free != null ? ` · ${format.bytes(free)} free` : ""}`;
+      ? `won't fit: only ${format.bytes(free)} usable`
+      : `${chosen.length} of ${this.paths.length} files${free != null ? ` · ${format.bytes(free)} usable` : ""}`;
+    $("[data-pickle-warning]", this.drawer).hidden = !chosen.some((f) => f.pickle);
 
     $("[data-download]", this.drawer).disabled = !chosen.length || tooBig;
     $$(".chip", this.drawer).forEach((chip) => chip.classList.toggle("on", chip.dataset.preset === this.preset));

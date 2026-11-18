@@ -4,10 +4,17 @@ Token order: the HF_TOKEN environment variable (set by the server admin) wins,
 then a token saved from the UI in CONFIG_DIR/hf_token.
 """
 
+import errno
 import os
 
 from huggingface_hub import HfApi
-from huggingface_hub.errors import GatedRepoError, HfHubHTTPError, RepositoryNotFoundError
+from huggingface_hub.errors import (
+    EntryNotFoundError,
+    GatedRepoError,
+    HfHubHTTPError,
+    RepositoryNotFoundError,
+    RevisionNotFoundError,
+)
 
 from .config import CONFIG_DIR, TOKEN_FILE
 
@@ -84,6 +91,19 @@ def card_license(info) -> str | None:
     return ", ".join(license_) if isinstance(license_, list) else license_
 
 
+def security_scan(info) -> dict:
+    """Hugging Face's malware/pickle scan for a repo (needs model_info(securityStatus=True))."""
+    status = getattr(info, "security_repo_status", None) or {}
+    return {
+        "scanned": bool(status.get("scansDone")),
+        "issues": [
+            {"path": f.get("path"), "level": f.get("level")}
+            for f in status.get("filesWithIssues") or []
+            if f.get("path")
+        ],
+    }
+
+
 def first_line(text) -> str:
     return str(text).strip().split("\n")[0]
 
@@ -99,3 +119,21 @@ def error_message(exc: HfHubHTTPError) -> str:
     if isinstance(exc, RepositoryNotFoundError):
         return "Model not found (or it is private and no Hugging Face token is set)."
     return first_line(exc)
+
+
+# Retrying these can't help: the repo, file or access is missing, or the disk is the problem.
+_PERMANENT = (GatedRepoError, RepositoryNotFoundError, RevisionNotFoundError, EntryNotFoundError)
+_PERMANENT_ERRNOS = {errno.ENOSPC, errno.EDQUOT, errno.EACCES, errno.EROFS, errno.EPERM}
+
+
+def describe_failure(exc: BaseException) -> tuple[str, bool]:
+    """A download error as (message for the UI, worth retrying?)."""
+    if isinstance(exc, HfHubHTTPError):
+        status = getattr(getattr(exc, "response", None), "status_code", None) or 0
+        retry = not isinstance(exc, _PERMANENT) and (status >= 500 or status in (0, 408, 429))
+        return error_message(exc), retry
+    if isinstance(exc, OSError) and exc.errno in _PERMANENT_ERRNOS:
+        if exc.errno in (errno.ENOSPC, errno.EDQUOT):
+            return "The disk is full", False
+        return f"Can't write the files: {exc.strerror}", False
+    return first_line(exc) or type(exc).__name__, True

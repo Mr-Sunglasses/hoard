@@ -435,3 +435,10 @@ label.file-row:hover { background: var(--hover); }
 .toast:nth-child(even) { transform: rotate(1.2deg); }
 .toast.error { background: var(--note-err); }
 @keyframes drop { from { opacity: 0; transform: translateY(14px) rotate(4deg); } }
+
+/* ---------- warnings (added for safety notices) ---------- */
+.notice.danger { color: var(--red); }
+.notice.danger::before { border-style: dashed; border-color: currentColor; }
+.notice ul.problems { margin: 6px 0 4px; padding-left: 18px; }
+.notice ul.problems li { word-break: break-all; }
+.error-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
